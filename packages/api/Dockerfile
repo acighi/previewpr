@@ -4,6 +4,7 @@ COPY package.json package-lock.json ./
 COPY packages/shared/package.json packages/shared/
 COPY packages/api/package.json packages/api/
 RUN npm ci --workspace=packages/shared --workspace=packages/api
+COPY tsconfig.base.json ./
 COPY packages/shared/ packages/shared/
 COPY packages/api/ packages/api/
 RUN npm run build -w packages/shared && npm run build -w packages/api
