@@ -1,0 +1,22 @@
+{
+  "name": "@previewpr/shared",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.0.0",
+    "bullmq": "^5.0.0",
+    "@octokit/app": "^15.0.0",
+    "@octokit/rest": "^21.0.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.0",
+    "typescript": "^5.4.0",
+    "vitest": "^3.0.0"
+  }
+}
