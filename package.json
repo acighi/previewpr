@@ -1,0 +1,13 @@
+{
+  "name": "previewpr",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:api": "npm run dev --workspace=packages/api",
+    "dev:worker": "npm run dev --workspace=packages/worker",
+    "build": "npm run build --workspace=packages/shared && npm run build --workspace=packages/api && npm run build --workspace=packages/worker",
+    "test": "npm run test --workspaces --if-present"
+  }
+}
