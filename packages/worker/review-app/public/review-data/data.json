@@ -1,0 +1,79 @@
+{
+  "pr_number": 42,
+  "pr_title": "Onboarding improvements",
+  "pr_author": "engineer-b",
+  "repo_owner": "acighi",
+  "repo_name": "pr-review-test",
+  "head_sha": "abc1234def5678",
+  "changes": [
+    {
+      "id": "change-1",
+      "category": "frontend",
+      "title": "Updated onboarding wizard steps",
+      "files": [
+        "src/components/OnboardingWizard.tsx",
+        "src/components/StepIndicator.tsx"
+      ],
+      "diff": "--- a/src/components/OnboardingWizard.tsx\n+++ b/src/components/OnboardingWizard.tsx\n@@ -12,8 +12,12 @@\n-  const steps = ['Welcome', 'Profile'];\n+  const steps = ['Welcome', 'Profile', 'Preferences', 'Done'];",
+      "commit_messages": ["feat: add preferences and done steps to onboarding"],
+      "estimated_impact": "visual",
+      "explanation": "Added two new steps (Preferences and Done) to the onboarding wizard. The step indicator now shows 4 dots instead of 2, and the wizard flow includes a preferences form before the completion screen.",
+      "risk_notes": null
+    },
+    {
+      "id": "change-2",
+      "category": "frontend",
+      "title": "Onboarding form validation",
+      "files": [
+        "src/components/OnboardingForm.tsx",
+        "src/hooks/useFormValidation.ts"
+      ],
+      "diff": "--- a/src/components/OnboardingForm.tsx\n+++ b/src/components/OnboardingForm.tsx\n@@ -5,6 +5,15 @@\n+  const { errors, validate } = useFormValidation(schema);\n+  const handleSubmit = () => { if (validate(data)) onNext(); };",
+      "commit_messages": ["feat: add client-side validation to onboarding form"],
+      "estimated_impact": "behavioral",
+      "explanation": "Added client-side form validation using a new useFormValidation hook. Required fields now show inline error messages before allowing the user to proceed to the next step.",
+      "risk_notes": "Validation runs on blur and submit. Users on slow devices may see a brief delay."
+    },
+    {
+      "id": "change-3",
+      "category": "backend",
+      "title": "Onboarding preferences API endpoint",
+      "files": [
+        "src/api/onboarding.ts",
+        "src/models/UserPreferences.ts"
+      ],
+      "diff": "--- a/src/api/onboarding.ts\n+++ b/src/api/onboarding.ts\n@@ -20,0 +21,18 @@\n+router.post('/preferences', async (req, res) => {\n+  const prefs = await UserPreferences.upsert(req.user.id, req.body);\n+  res.json(prefs);\n+});",
+      "commit_messages": ["feat: add POST /preferences endpoint for onboarding"],
+      "estimated_impact": "data",
+      "explanation": "New API endpoint to save user preferences during onboarding. Uses upsert to handle both first-time and returning users.",
+      "risk_notes": "No rate limiting on this endpoint yet. Should be added before launch."
+    }
+  ],
+  "screenshots": {
+    "change-1": {
+      "affected_routes": ["/onboarding"],
+      "captures": [
+        {
+          "route": "/onboarding",
+          "before": "/review-data/screenshots/change-1-before.png",
+          "after": "/review-data/screenshots/change-1-after.png",
+          "diff": "/review-data/screenshots/change-1-diff.png"
+        }
+      ]
+    },
+    "change-2": {
+      "affected_routes": ["/onboarding", "/onboarding/profile"],
+      "captures": [
+        {
+          "route": "/onboarding",
+          "before": "/review-data/screenshots/change-2-onboarding-before.png",
+          "after": "/review-data/screenshots/change-2-onboarding-after.png"
+        },
+        {
+          "route": "/onboarding/profile",
+          "after": "/review-data/screenshots/change-2-profile-after.png"
+        }
+      ]
+    }
+  }
+}

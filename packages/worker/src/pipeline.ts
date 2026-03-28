@@ -18,6 +18,7 @@ import { analyzeDiff } from "./pipeline/analyze-diff.js";
 import { captureScreenshots } from "./pipeline/capture-screenshots.js";
 import { generateDiffs } from "./pipeline/generate-diffs.js";
 import { summarizeChanges } from "./pipeline/summarize-changes.js";
+import { deployReviewApp } from "./pipeline/deploy-review-app.js";
 
 export const PIPELINE_TIMEOUT = 300_000; // 5 minutes
 
@@ -143,9 +144,18 @@ export async function runPipeline(
     const changesJsonPath = path.join(outputDir, "changes.json");
     await summarizeChanges(changesJsonPath, ctx.anthropicApiKey);
     log.info("Step 7: summarized changes");
-    log.info("Step 8: TODO - deployReviewApp");
 
-    const reviewUrl = `https://previewpr.com/review/${job.jobId}`;
+    // Step 8: Build and deploy review app to CF Pages
+    const screenshotsDir = path.join(outputDir, "screenshots");
+    const reviewUrl = await deployReviewApp({
+      changesJsonPath,
+      screenshotsDir,
+      cfApiToken: ctx.cfApiToken,
+      cfAccountId: ctx.cfAccountId,
+      jobId: job.jobId,
+    });
+    log.info(`Step 8: deployed review app — ${reviewUrl}`);
+
     updateJobStatus(ctx.db, job.jobId, "completed", { review_url: reviewUrl });
 
     return reviewUrl;
