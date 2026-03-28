@@ -14,6 +14,10 @@ import {
   stopContainer,
   waitForReady,
 } from "./docker.js";
+import { analyzeDiff } from "./pipeline/analyze-diff.js";
+import { captureScreenshots } from "./pipeline/capture-screenshots.js";
+import { generateDiffs } from "./pipeline/generate-diffs.js";
+import { summarizeChanges } from "./pipeline/summarize-changes.js";
 
 export const PIPELINE_TIMEOUT = 300_000; // 5 minutes
 
@@ -110,10 +114,35 @@ export async function runPipeline(
     mainContainer = containers.mainContainer;
     prContainer = containers.prContainer;
 
-    log.info("Step 4: TODO - analyzeDiff");
-    log.info("Step 5: TODO - captureScreenshots");
-    log.info("Step 6: TODO - generateDiffs");
-    log.info("Step 7: TODO - summarizeChanges");
+    // Step 4: Analyze diff between main and PR directories
+    const outputDir = path.join(ctx.jobDir, "output");
+    const analysis = analyzeDiff(mainDir, prDir, outputDir);
+    log.info(`Step 4: analyzed diff — ${analysis.changes.length} change units`);
+
+    // Step 5: Capture before/after screenshots
+    const frontendChanges = analysis.changes.filter(
+      (c) => c.category === "frontend" || c.estimated_impact === "visual",
+    );
+    const captureResult = await captureScreenshots({
+      changes: frontendChanges,
+      routes: [], // TODO: read from repo config
+      beforePort: containers.mainPort,
+      afterPort: containers.prPort,
+      outputDir,
+    });
+    log.info(
+      `Step 5: captured screenshots for ${Object.keys(captureResult.screenshots).length} changes`,
+    );
+
+    // Step 6: Generate pixel-diff PNGs
+    const screenshotsJsonPath = path.join(outputDir, "screenshots.json");
+    await generateDiffs(screenshotsJsonPath, outputDir);
+    log.info("Step 6: generated diff images");
+
+    // Step 7: Summarize changes with AI
+    const changesJsonPath = path.join(outputDir, "changes.json");
+    await summarizeChanges(changesJsonPath, ctx.anthropicApiKey);
+    log.info("Step 7: summarized changes");
     log.info("Step 8: TODO - deployReviewApp");
 
     const reviewUrl = `https://previewpr.com/review/${job.jobId}`;
