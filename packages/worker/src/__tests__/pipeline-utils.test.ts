@@ -40,7 +40,7 @@ describe("buildPrompt", () => {
     const change = { ...baseChange, category: "frontend" as const };
     const result = buildPrompt(change);
 
-    expect(result).toContain("before/after screenshots");
+    expect(result).toContain("What does the user see differently");
     expect(result).toContain("some diff content");
     expect(result).toContain("fix: button color");
   });
@@ -49,7 +49,7 @@ describe("buildPrompt", () => {
     const change = { ...baseChange, category: "backend" as const };
     const result = buildPrompt(change);
 
-    expect(result).toContain("backend code change");
+    expect(result).toContain("backend code change from the product");
     expect(result).toContain("some diff content");
     expect(result).toContain("fix: button color");
   });

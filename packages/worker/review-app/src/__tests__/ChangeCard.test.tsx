@@ -81,7 +81,7 @@ describe("ChangeCard", () => {
         onDecisionChange={onChange}
       />,
     );
-    await user.click(screen.getByText("Approve"));
+    await user.click(screen.getByRole("button", { name: /Approve/ }));
     expect(onChange).toHaveBeenCalledWith({
       changeId: "test-1",
       status: "approved",

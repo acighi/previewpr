@@ -9,20 +9,24 @@ const mockInsertInstallation = vi.fn();
 const mockRemoveInstallation = vi.fn();
 const mockUpdateInstallationRepos = vi.fn();
 
-vi.mock("@previewpr/shared", () => ({
-  getInstallation: (...args: unknown[]) => mockGetInstallation(...args),
-  insertJob: (...args: unknown[]) => mockInsertJob(...args),
-  incrementPrCount: (...args: unknown[]) => mockIncrementPrCount(...args),
-  insertInstallation: (...args: unknown[]) => mockInsertInstallation(...args),
-  removeInstallation: (...args: unknown[]) => mockRemoveInstallation(...args),
-  updateInstallationRepos: (...args: unknown[]) =>
-    mockUpdateInstallationRepos(...args),
-  createLogger: () => ({
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-  }),
-}));
+vi.mock("@previewpr/shared", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@previewpr/shared")>();
+  return {
+    ...actual,
+    getInstallation: (...args: unknown[]) => mockGetInstallation(...args),
+    insertJob: (...args: unknown[]) => mockInsertJob(...args),
+    incrementPrCount: (...args: unknown[]) => mockIncrementPrCount(...args),
+    insertInstallation: (...args: unknown[]) => mockInsertInstallation(...args),
+    removeInstallation: (...args: unknown[]) => mockRemoveInstallation(...args),
+    updateInstallationRepos: (...args: unknown[]) =>
+      mockUpdateInstallationRepos(...args),
+    createLogger: () => ({
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+    }),
+  };
+});
 
 import { verifyWebhookSignature, createWebhookHandler } from "../webhooks.js";
 
