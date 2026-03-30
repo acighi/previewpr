@@ -15,4 +15,4 @@ mkdir -p /tmp/previewpr-jobs
 chown node:node /tmp/previewpr-jobs
 
 # Drop to node user
-exec su-exec node "$@"
+exec gosu node "$@"

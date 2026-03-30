@@ -14,8 +14,8 @@ FROM node:20-bookworm-slim
 RUN npx playwright install --with-deps chromium
 # Install Docker CLI (for spawning sandbox containers)
 RUN apt-get update && apt-get install -y docker.io && rm -rf /var/lib/apt/lists/*
-# su-exec for dropping privileges after fixing permissions
-RUN apt-get update && apt-get install -y su-exec && rm -rf /var/lib/apt/lists/*
+# gosu for dropping privileges after fixing permissions (Debian equivalent of su-exec)
+RUN apt-get update && apt-get install -y gosu && rm -rf /var/lib/apt/lists/*
 # Create docker group and add node user — entrypoint fixes GID at runtime
 RUN groupadd -f docker && usermod -aG docker node
 WORKDIR /app
