@@ -8,6 +8,7 @@ import {
   createWorkerProcessor,
   createLogger,
   updateJobStatus,
+  scrubSecrets,
   type PipelineJobData,
 } from "@previewpr/shared";
 import { loadEnv } from "./env.js";
@@ -51,7 +52,8 @@ async function processJob(job: PipelineJobData): Promise<void> {
 
     jobLog.info("Job completed", { reviewUrl });
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
+    const rawMessage = err instanceof Error ? err.message : String(err);
+    const message = scrubSecrets(rawMessage);
     jobLog.error("Job failed", { error: message });
     updateJobStatus(db, job.jobId, "failed", { error_message: message });
 
@@ -62,7 +64,7 @@ async function processJob(job: PipelineJobData): Promise<void> {
         owner,
         repo,
         job.prNumber,
-        `## PreviewPR Error\n\nPipeline failed: ${message}`,
+        `## PreviewPR Error\n\nPipeline failed. Check the dashboard for details.`,
       );
     } catch (commentErr) {
       jobLog.error("Failed to post error comment", {

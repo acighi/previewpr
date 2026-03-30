@@ -10,6 +10,8 @@ COPY packages/api/ packages/api/
 RUN npm run build -w packages/shared && npm run build -w packages/api
 
 FROM node:20-alpine
+# su-exec for dropping root after fixing permissions
+RUN apk add --no-cache su-exec
 WORKDIR /app
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
@@ -18,7 +20,7 @@ COPY --from=builder /app/packages/api/dist ./packages/api/dist
 COPY --from=builder /app/packages/api/package.json ./packages/api/
 COPY --from=builder /app/package.json ./
 EXPOSE 3000
-# Entrypoint to fix volume permissions for SQLite data dir
+# Entrypoint runs as root to fix volume permissions, then drops to node user
 COPY packages/api/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 ENTRYPOINT ["/entrypoint.sh"]

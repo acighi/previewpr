@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
 import path from "node:path";
 import type { ChangeUnit, AnalysisOutput } from "@previewpr/shared";
+import { validateRoutes } from "@previewpr/shared";
 
 // --- Config ---
 
@@ -31,7 +32,32 @@ export function loadConfig(repoRoot: string): ReviewConfig {
   try {
     const raw = readFileSync(configPath, "utf-8");
     const parsed = JSON.parse(raw);
-    return { ...DEFAULT_CONFIG, ...parsed };
+
+    // Validate routes from attacker-controlled config to prevent SSRF
+    const routes = validateRoutes(parsed.routes);
+
+    // Only allow string arrays for path configs, reject anything else
+    const safeStringArray = (val: unknown, fallback: string[]): string[] => {
+      if (!Array.isArray(val)) return fallback;
+      return val.filter((v): v is string => typeof v === "string").slice(0, 50);
+    };
+
+    return {
+      frontend_paths: safeStringArray(
+        parsed.frontend_paths,
+        DEFAULT_CONFIG.frontend_paths,
+      ),
+      backend_paths: safeStringArray(
+        parsed.backend_paths,
+        DEFAULT_CONFIG.backend_paths,
+      ),
+      ignore_paths: safeStringArray(
+        parsed.ignore_paths,
+        DEFAULT_CONFIG.ignore_paths,
+      ),
+      screenshot_base_url: DEFAULT_CONFIG.screenshot_base_url, // Never trust user-supplied base URL
+      routes,
+    };
   } catch {
     return { ...DEFAULT_CONFIG };
   }

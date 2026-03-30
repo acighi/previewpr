@@ -14,6 +14,10 @@ FROM node:20-bookworm-slim
 RUN npx playwright install --with-deps chromium
 # Install Docker CLI (for spawning sandbox containers)
 RUN apt-get update && apt-get install -y docker.io && rm -rf /var/lib/apt/lists/*
+# su-exec for dropping privileges after fixing permissions
+RUN apt-get update && apt-get install -y su-exec && rm -rf /var/lib/apt/lists/*
+# Create docker group and add node user — entrypoint fixes GID at runtime
+RUN groupadd -f docker && usermod -aG docker node
 WORKDIR /app
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
@@ -22,4 +26,8 @@ COPY --from=builder /app/packages/worker/dist ./packages/worker/dist
 COPY --from=builder /app/packages/worker/package.json ./packages/worker/
 COPY --from=builder /app/packages/worker/review-app ./packages/worker/review-app
 COPY --from=builder /app/package.json ./
+# Entrypoint runs as root to fix docker socket GID, then drops to node user
+COPY packages/worker/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+ENTRYPOINT ["/entrypoint.sh"]
 CMD ["node", "packages/worker/dist/index.js"]

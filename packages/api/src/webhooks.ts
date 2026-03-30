@@ -11,6 +11,7 @@ import {
   removeInstallation,
   updateInstallationRepos,
   createLogger,
+  createJobToken,
 } from "@previewpr/shared";
 
 const logger = createLogger();
@@ -171,14 +172,17 @@ export function createWebhookHandler(deps: WebhookDeps) {
         headSha: pr.head.sha,
       });
 
-      // Post "generating..." comment
+      // Generate HMAC token for the job status URL
+      const jobToken = createJobToken(jobId, webhookSecret);
+
+      // Post "generating..." comment with authenticated status link
       const [owner, repo] = repoFullName.split("/");
       await postPrComment(
         installationGithubId,
         owner,
         repo,
         pr.number,
-        "Generating visual review... This usually takes 1-2 minutes.",
+        `Generating visual review... This usually takes 1-2 minutes.\n\n[Check status](https://api.previewpr.com/jobs/${jobId}?token=${jobToken})`,
       );
 
       logger.info("Job created for PR", {

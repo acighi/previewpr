@@ -32,6 +32,7 @@ export function buildInstallArgs(codePath: string, name: string): string[] {
     "--memory=512m",
     "--cpus=1",
     "--pids-limit=256",
+    "--security-opt=no-new-privileges",
     "-v",
     `${codePath}:/app`,
     "-w",
@@ -39,7 +40,7 @@ export function buildInstallArgs(codePath: string, name: string): string[] {
     "node:20-alpine",
     "sh",
     "-c",
-    "npm install --prefer-offline 2>&1",
+    "npm install --prefer-offline --ignore-scripts 2>&1",
   ];
 }
 

@@ -2,6 +2,7 @@ import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { PNG } from "pngjs";
 import pixelmatch from "pixelmatch";
+import { createLogger } from "@previewpr/shared";
 
 // --- Types ---
 
@@ -18,6 +19,8 @@ interface ScreenshotEntry {
 }
 
 type ScreenshotsJson = Record<string, ScreenshotEntry>;
+
+const log = createLogger();
 
 // --- Image helpers ---
 
@@ -55,7 +58,7 @@ function generateDiffForCapture(
   outputDir: string,
 ): { diffPath: string; diffPixels: number } | null {
   if (!capture.before || !capture.after) {
-    console.log(`  Skipping ${capture.route}: missing before or after`);
+    log.info(`Skipping ${capture.route}: missing before or after`);
     return null;
   }
 
@@ -63,7 +66,7 @@ function generateDiffForCapture(
   const afterPath = join(outputDir, capture.after);
 
   if (!existsSync(beforePath) || !existsSync(afterPath)) {
-    console.log(`  Skipping ${capture.route}: file not found`);
+    log.info(`Skipping ${capture.route}: file not found`);
     return null;
   }
 
@@ -111,13 +114,13 @@ function processChange(
   entry: ScreenshotEntry,
   outputDir: string,
 ): CaptureEntry[] {
-  console.log(`Processing diffs for ${changeId}`);
+  log.info(`Processing diffs for ${changeId}`);
   const updatedCaptures: CaptureEntry[] = [];
 
   for (const capture of entry.captures) {
     const result = generateDiffForCapture(capture, outputDir);
     if (result) {
-      console.log(`  ${capture.route}: ${result.diffPixels} diff pixels`);
+      log.info(`${capture.route}: ${result.diffPixels} diff pixels`);
       updatedCaptures.push({ ...capture, diff: result.diffPath });
     } else {
       updatedCaptures.push(capture);
@@ -134,7 +137,7 @@ export async function generateDiffs(
   outputDir: string,
 ): Promise<void> {
   if (!existsSync(screenshotsJsonPath)) {
-    console.log("No screenshots.json found, nothing to diff");
+    log.info("No screenshots.json found, nothing to diff");
     return;
   }
 
@@ -151,5 +154,5 @@ export async function generateDiffs(
   }
 
   writeFileSync(screenshotsJsonPath, JSON.stringify(screenshots, null, 2));
-  console.log(`Updated ${screenshotsJsonPath} with diff paths`);
+  log.info("Updated screenshots.json with diff paths");
 }

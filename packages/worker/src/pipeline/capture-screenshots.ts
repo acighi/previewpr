@@ -2,6 +2,7 @@ import { chromium } from "playwright";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join, basename } from "node:path";
 import type { ChangeUnit } from "@previewpr/shared";
+import { createLogger } from "@previewpr/shared";
 
 // --- Types ---
 
@@ -77,6 +78,7 @@ export function routeToFilename(route: string): string {
 
 // --- Screenshot capture ---
 
+const log = createLogger();
 const PAGE_TIMEOUT = 30_000;
 
 export async function captureScreenshots(
@@ -121,7 +123,7 @@ export async function captureScreenshots(
           await page.screenshot({ path: beforePath, fullPage: true });
           entry.before = `screenshots/${change.id}/${beforeFile}`;
         } catch (err) {
-          console.error(
+          log.error(
             `Failed to capture before for ${route}: ${(err as Error).message}`,
           );
         }
@@ -137,7 +139,7 @@ export async function captureScreenshots(
           await page.screenshot({ path: afterPath, fullPage: true });
           entry.after = `screenshots/${change.id}/${afterFile}`;
         } catch (err) {
-          console.error(
+          log.error(
             `Failed to capture after for ${route}: ${(err as Error).message}`,
           );
         }

@@ -111,9 +111,18 @@ export function buildReviewApp(
   writeFileSync(path.join(publicReviewData, "data.json"), changesData);
 
   // 3. Copy screenshots into public/review-data/screenshots/
+  // Screenshots come from our pipeline (not user-controlled), but sanitize
+  // filenames to prevent path traversal if the pipeline is ever compromised
   if (existsSync(screenshotsDir)) {
     const destScreenshots = path.join(publicReviewData, "screenshots");
-    cpSync(screenshotsDir, destScreenshots, { recursive: true });
+    cpSync(screenshotsDir, destScreenshots, {
+      recursive: true,
+      filter: (src: string) => {
+        const name = path.basename(src);
+        // Block path traversal and non-image files
+        return !name.includes("..") && !name.startsWith(".");
+      },
+    });
   }
 
   // 4. Install deps and run vite build

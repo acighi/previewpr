@@ -1,10 +1,11 @@
 import { execFileSync } from "node:child_process";
-import { mkdirSync, rmSync } from "node:fs";
+import { mkdirSync, rmSync, writeFileSync, chmodSync } from "node:fs";
 import path from "node:path";
 import type Database from "better-sqlite3";
 import {
   updateJobStatus,
   createLogger,
+  validateBranchName,
   type PipelineJobData,
 } from "@previewpr/shared";
 import {
@@ -31,27 +32,53 @@ export interface PipelineContext {
   cfAccountId: string;
 }
 
+/**
+ * Create a temporary GIT_ASKPASS script that outputs the token.
+ * This avoids embedding the token in the clone URL (which leaks via
+ * `ps aux`, error messages, and git config).
+ */
+function createAskPassScript(jobDir: string, token: string): string {
+  const scriptPath = path.join(jobDir, ".git-askpass.sh");
+  writeFileSync(scriptPath, `#!/bin/sh\necho "${token}"\n`, { mode: 0o700 });
+  chmodSync(scriptPath, 0o700);
+  return scriptPath;
+}
+
 function cloneRepos(
   jobDir: string,
-  cloneUrl: string,
+  repoFullName: string,
   baseBranch: string,
   prBranch: string,
+  cloneToken: string,
 ): void {
+  // Validate branch names before using them in git commands
+  validateBranchName(baseBranch);
+  validateBranchName(prBranch);
+
   const mainDir = path.join(jobDir, "main");
   const prDir = path.join(jobDir, "pr");
   mkdirSync(mainDir, { recursive: true });
   mkdirSync(prDir, { recursive: true });
 
+  // Use GIT_ASKPASS to pass the token securely — never embed in URL
+  const askPassScript = createAskPassScript(jobDir, cloneToken);
+  const cloneUrl = `https://x-access-token@github.com/${repoFullName}.git`;
+  const cloneEnv = {
+    ...process.env,
+    GIT_ASKPASS: askPassScript,
+    GIT_TERMINAL_PROMPT: "0",
+  };
+
   execFileSync(
     "git",
     ["clone", "--depth", "1", "--branch", baseBranch, cloneUrl, mainDir],
-    { timeout: 60_000, stdio: "pipe" },
+    { timeout: 60_000, stdio: "pipe", env: cloneEnv },
   );
 
   execFileSync(
     "git",
     ["clone", "--depth", "1", "--branch", prBranch, cloneUrl, prDir],
-    { timeout: 60_000, stdio: "pipe" },
+    { timeout: 60_000, stdio: "pipe", env: cloneEnv },
   );
 }
 
@@ -106,8 +133,13 @@ export async function runPipeline(
   try {
     updateJobStatus(ctx.db, job.jobId, "running");
 
-    const cloneUrl = `https://x-access-token:${ctx.cloneToken}@github.com/${job.repoFullName}.git`;
-    cloneRepos(ctx.jobDir, cloneUrl, job.baseBranch, job.prBranch);
+    cloneRepos(
+      ctx.jobDir,
+      job.repoFullName,
+      job.baseBranch,
+      job.prBranch,
+      ctx.cloneToken,
+    );
 
     const mainDir = path.join(ctx.jobDir, "main");
     const prDir = path.join(ctx.jobDir, "pr");
