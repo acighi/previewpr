@@ -20,7 +20,7 @@ Split into two processes:
 
 ## Deployment
 
-Hetzner VPS (135.181.25.143) via Coolify. Monorepo with `packages/shared`, `packages/api`, `packages/worker`.
+Hetzner VPS via Coolify. Monorepo with `packages/shared`, `packages/api`, `packages/worker`.
 
 ## Dev Commands
 
