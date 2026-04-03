@@ -25,10 +25,10 @@ describe("buildRunArgs", () => {
     expect(args).toContain("--network=none");
   });
 
-  it("includes --read-only for filesystem protection", () => {
+  it("mounts code volume as read-only for filesystem protection", () => {
     const args = buildRunArgs("/tmp/code", "job-run-123", 4567);
 
-    expect(args).toContain("--read-only");
+    expect(args.join(" ")).toContain("/app:ro");
   });
 
   it("includes --security-opt=no-new-privileges", () => {
