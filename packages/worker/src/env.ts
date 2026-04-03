@@ -18,29 +18,29 @@ function required(name: string): string {
 }
 
 /**
- * Normalize a PEM private key from any env var format:
- * - Literal \n escape sequences → real newlines
- * - Spaces between base64 blocks → real newlines
- * - Already has real newlines → pass through
+ * Normalize a PEM private key from any env var format.
+ * Extracts the raw base64 content and rebuilds proper PEM structure
+ * regardless of how the env var was formatted (spaces, \n, real newlines).
  */
 function normalizePem(raw: string): string {
-  // First handle \n escape sequences
-  let key = raw.replace(/\\n/g, "\n");
-  // If it still looks like a single line (no newlines between BEGIN and END),
-  // split on spaces between base64 chunks
-  if (!key.includes("\n")) {
-    key = key
-      .replace(
-        "-----BEGIN RSA PRIVATE KEY----- ",
-        "-----BEGIN RSA PRIVATE KEY-----\n",
-      )
-      .replace(
-        " -----END RSA PRIVATE KEY-----",
-        "\n-----END RSA PRIVATE KEY-----",
-      )
-      .replace(/ /g, "\n");
+  // Strip the PEM header/footer and all whitespace to get pure base64
+  const base64 = raw
+    .replace(/\\n/g, " ")
+    .replace(/-----BEGIN [A-Z ]+-----/, "")
+    .replace(/-----END [A-Z ]+-----/, "")
+    .replace(/\s+/g, "");
+
+  // Detect key type from original string
+  const typeMatch = raw.match(/-----BEGIN ([A-Z ]+)-----/);
+  const type = typeMatch ? typeMatch[1] : "RSA PRIVATE KEY";
+
+  // Rebuild with 64-char lines (PEM standard)
+  const lines: string[] = [];
+  for (let i = 0; i < base64.length; i += 64) {
+    lines.push(base64.substring(i, i + 64));
   }
-  return key;
+
+  return `-----BEGIN ${type}-----\n${lines.join("\n")}\n-----END ${type}-----\n`;
 }
 
 export function loadEnv(): WorkerEnv {

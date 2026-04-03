@@ -10,26 +10,26 @@ export interface Env {
 }
 
 /**
- * Normalize a PEM private key from any env var format:
- * - Literal \n escape sequences → real newlines
- * - Spaces between base64 blocks → real newlines
- * - Already has real newlines → pass through
+ * Normalize a PEM private key from any env var format.
+ * Extracts the raw base64 content and rebuilds proper PEM structure
+ * regardless of how the env var was formatted (spaces, \n, real newlines).
  */
 function normalizePem(raw: string): string {
-  let key = raw.replace(/\\n/g, "\n");
-  if (!key.includes("\n")) {
-    key = key
-      .replace(
-        "-----BEGIN RSA PRIVATE KEY----- ",
-        "-----BEGIN RSA PRIVATE KEY-----\n",
-      )
-      .replace(
-        " -----END RSA PRIVATE KEY-----",
-        "\n-----END RSA PRIVATE KEY-----",
-      )
-      .replace(/ /g, "\n");
+  const base64 = raw
+    .replace(/\\n/g, " ")
+    .replace(/-----BEGIN [A-Z ]+-----/, "")
+    .replace(/-----END [A-Z ]+-----/, "")
+    .replace(/\s+/g, "");
+
+  const typeMatch = raw.match(/-----BEGIN ([A-Z ]+)-----/);
+  const type = typeMatch ? typeMatch[1] : "RSA PRIVATE KEY";
+
+  const lines: string[] = [];
+  for (let i = 0; i < base64.length; i += 64) {
+    lines.push(base64.substring(i, i + 64));
   }
-  return key;
+
+  return `-----BEGIN ${type}-----\n${lines.join("\n")}\n-----END ${type}-----\n`;
 }
 
 export function loadEnv(): Env {
