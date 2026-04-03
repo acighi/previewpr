@@ -36,12 +36,13 @@ async function main() {
   // Raw body parsing for webhook signature verification
   app.addContentTypeParser(
     "application/json",
-    { parseAs: "string" },
+    { parseAs: "buffer" },
     (req, body, done) => {
       try {
-        const json = JSON.parse(body as string);
-        // Attach raw body to request
-        (req as any).rawBody = body;
+        const rawBody = (body as Buffer).toString("utf-8");
+        const json = JSON.parse(rawBody);
+        // Attach raw body to request for HMAC signature verification
+        (req as any).rawBody = rawBody;
         done(null, json);
       } catch (err) {
         done(err as Error, undefined);
