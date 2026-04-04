@@ -54,9 +54,26 @@ export function buildInstallArgs(
     "-c",
   ];
 
+  // For static projects, write a minimal Node.js static file server
+  // instead of installing an npm package — zero dependencies, works offline
+  const staticServer = [
+    "const http=require('http'),fs=require('fs'),path=require('path'),url=require('url');",
+    "const MIME={'.html':'text/html','.css':'text/css','.js':'application/javascript',",
+    "'.json':'application/json','.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg',",
+    "'.gif':'image/gif','.svg':'image/svg+xml','.ico':'image/x-icon','.woff':'font/woff',",
+    "'.woff2':'font/woff2','.ttf':'font/ttf','.webp':'image/webp'};",
+    "http.createServer((req,res)=>{let p=url.parse(req.url).pathname;",
+    "if(p==='/') p='/index.html';const fp=path.join('/app',p);",
+    "if(!fp.startsWith('/app/')){res.writeHead(403);res.end();return}",
+    "fs.readFile(fp,(err,data)=>{if(err){res.writeHead(404);res.end('Not found')}",
+    "else{const ext=path.extname(fp).toLowerCase();",
+    "res.writeHead(200,{'Content-Type':MIME[ext]||'application/octet-stream'});",
+    "res.end(data)}})}).listen(3000,'0.0.0.0',()=>console.log('Static server on port 3000'));",
+  ].join("");
+
   const installCmd =
     projectType === "static"
-      ? "npm init -y && npm install serve 2>&1"
+      ? `printf '%s' '${staticServer}' > /app/_serve.cjs`
       : "npm install --prefer-offline --ignore-scripts 2>&1";
 
   return [...baseArgs, installCmd];
@@ -70,7 +87,7 @@ export function buildRunArgs(
 ): string[] {
   const serveCmd =
     projectType === "static"
-      ? "cd /app && ./node_modules/.bin/serve -s . -l 3000"
+      ? "cd /app && node _serve.cjs"
       : "cd /app && npm run dev";
 
   return [
