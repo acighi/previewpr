@@ -99,10 +99,10 @@ export function buildRunArgs(
   hostPort: number,
   projectType: ProjectType = "node",
 ): string[] {
-  // For static: decode the server script into /tmp and run it with node
+  // For static: pipe the server script directly into node via stdin
   const serveCmd =
     projectType === "static"
-      ? `echo ${STATIC_SERVER_B64} | base64 -d > /tmp/serve.cjs && node /tmp/serve.cjs`
+      ? `echo ${STATIC_SERVER_B64} | base64 -d | node`
       : "cd /app && npm run dev";
 
   const volumes: string[] = ["-v", `${codePath}:/app:ro`];
@@ -110,19 +110,24 @@ export function buildRunArgs(
     volumes.push("-v", `${codePath}/node_modules:/app/node_modules:ro`);
   }
 
-  return [
+  const args = [
     "run",
     "--rm",
     "-d",
     "--name",
     name,
-    "--network=none",
     "--memory=512m",
     "--cpus=1",
     "--pids-limit=256",
-    "--tmpfs",
-    "/tmp:rw,noexec,size=100m",
     "--security-opt=no-new-privileges",
+  ];
+
+  // Static HTML has no code to exfiltrate; Node projects get full isolation
+  if (projectType === "node") {
+    args.push("--network=none", "--tmpfs", "/tmp:rw,noexec,size=100m");
+  }
+
+  args.push(
     ...volumes,
     "-p",
     `${hostPort}:3000`,
@@ -132,7 +137,9 @@ export function buildRunArgs(
     "sh",
     "-c",
     serveCmd,
-  ];
+  );
+
+  return args;
 }
 
 export function runInstall(
