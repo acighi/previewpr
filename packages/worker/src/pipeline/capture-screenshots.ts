@@ -116,7 +116,7 @@ export async function captureScreenshots(
         try {
           const beforeFile = `${routeName}-before.png`;
           const beforePath = join(screenshotDir, beforeFile);
-          await page.goto(`http://localhost:${beforePort}${route}`, {
+          await page.goto(`http://host.docker.internal:${beforePort}${route}`, {
             waitUntil: "networkidle",
             timeout: PAGE_TIMEOUT,
           });
@@ -132,7 +132,7 @@ export async function captureScreenshots(
         try {
           const afterFile = `${routeName}-after.png`;
           const afterPath = join(screenshotDir, afterFile);
-          await page.goto(`http://localhost:${afterPort}${route}`, {
+          await page.goto(`http://host.docker.internal:${afterPort}${route}`, {
             waitUntil: "networkidle",
             timeout: PAGE_TIMEOUT,
           });

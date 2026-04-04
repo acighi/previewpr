@@ -218,7 +218,7 @@ export async function waitForReady(
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
     try {
-      const response = await fetch(`http://localhost:${port}/`);
+      const response = await fetch(`http://host.docker.internal:${port}/`);
       if (response.ok || response.status < 500) return;
     } catch {
       // not ready yet
