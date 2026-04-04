@@ -186,8 +186,33 @@ export function stopContainer(name: string): void {
   }
 }
 
+export function getContainerLogs(name: string): string {
+  try {
+    return execFileSync("docker", ["logs", "--tail", "50", name], {
+      timeout: 5_000,
+      encoding: "utf-8",
+    });
+  } catch {
+    return "(no logs available)";
+  }
+}
+
+export function isContainerRunning(name: string): boolean {
+  try {
+    const result = execFileSync(
+      "docker",
+      ["inspect", "-f", "{{.State.Running}}", name],
+      { timeout: 5_000, encoding: "utf-8" },
+    );
+    return result.trim() === "true";
+  } catch {
+    return false;
+  }
+}
+
 export async function waitForReady(
   port: number,
+  containerName: string,
   timeoutMs: number = 60_000,
 ): Promise<void> {
   const start = Date.now();
@@ -200,5 +225,11 @@ export async function waitForReady(
     }
     await new Promise((r) => setTimeout(r, 1_000));
   }
-  throw new Error(`Container on port ${port} not ready after ${timeoutMs}ms`);
+  // Capture diagnostics before throwing
+  const running = isContainerRunning(containerName);
+  const logs = getContainerLogs(containerName);
+  throw new Error(
+    `Container ${containerName} on port ${port} not ready after ${timeoutMs}ms. ` +
+      `Running: ${running}. Logs:\n${logs}`,
+  );
 }

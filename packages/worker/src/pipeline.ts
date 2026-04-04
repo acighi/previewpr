@@ -106,8 +106,8 @@ async function bootContainers(
   startContainer(mainDir, mainName, mainPort, projectType);
   startContainer(prDir, prName, prPort, projectType);
 
-  await waitForReady(mainPort);
-  await waitForReady(prPort);
+  await waitForReady(mainPort, mainName);
+  await waitForReady(prPort, prName);
 
   return { mainPort, prPort, mainContainer: mainName, prContainer: prName };
 }
