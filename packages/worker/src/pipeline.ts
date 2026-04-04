@@ -9,6 +9,7 @@ import {
   type PipelineJobData,
 } from "@previewpr/shared";
 import {
+  detectProjectType,
   getFreePorts,
   runInstall,
   startContainer,
@@ -96,11 +97,14 @@ async function bootContainers(
   const mainName = `ppr-main-${jobId.slice(0, 8)}`;
   const prName = `ppr-pr-${jobId.slice(0, 8)}`;
 
-  runInstall(mainDir, `${mainName}-install`);
-  runInstall(prDir, `${prName}-install`);
+  // Detect project type from PR branch (both branches are the same repo)
+  const projectType = detectProjectType(prDir);
 
-  const mainContainer = startContainer(mainDir, mainName, mainPort);
-  const prContainer = startContainer(prDir, prName, prPort);
+  runInstall(mainDir, `${mainName}-install`, projectType);
+  runInstall(prDir, `${prName}-install`, projectType);
+
+  startContainer(mainDir, mainName, mainPort, projectType);
+  startContainer(prDir, prName, prPort, projectType);
 
   await waitForReady(mainPort);
   await waitForReady(prPort);

@@ -1,5 +1,13 @@
 import { execFileSync } from "node:child_process";
+import { existsSync } from "node:fs";
 import { createServer } from "node:net";
+import path from "node:path";
+
+export type ProjectType = "node" | "static";
+
+export function detectProjectType(codePath: string): ProjectType {
+  return existsSync(path.join(codePath, "package.json")) ? "node" : "static";
+}
 
 export async function getFreePorts(count: number): Promise<number[]> {
   const ports: number[] = [];
@@ -23,8 +31,12 @@ export async function getFreePorts(count: number): Promise<number[]> {
   return ports;
 }
 
-export function buildInstallArgs(codePath: string, name: string): string[] {
-  return [
+export function buildInstallArgs(
+  codePath: string,
+  name: string,
+  projectType: ProjectType = "node",
+): string[] {
+  const baseArgs = [
     "run",
     "--rm",
     "--name",
@@ -40,15 +52,27 @@ export function buildInstallArgs(codePath: string, name: string): string[] {
     "node:20-alpine",
     "sh",
     "-c",
-    "npm install --prefer-offline --ignore-scripts 2>&1",
   ];
+
+  const installCmd =
+    projectType === "static"
+      ? "npm init -y && npm install serve 2>&1"
+      : "npm install --prefer-offline --ignore-scripts 2>&1";
+
+  return [...baseArgs, installCmd];
 }
 
 export function buildRunArgs(
   codePath: string,
   name: string,
   hostPort: number,
+  projectType: ProjectType = "node",
 ): string[] {
+  const serveCmd =
+    projectType === "static"
+      ? "cd /app && ./node_modules/.bin/serve -s . -l 3000"
+      : "cd /app && npm run dev";
+
   return [
     "run",
     "--rm",
@@ -73,12 +97,16 @@ export function buildRunArgs(
     "node:20-alpine",
     "sh",
     "-c",
-    "cd /app && npm run dev",
+    serveCmd,
   ];
 }
 
-export function runInstall(codePath: string, name: string): void {
-  execFileSync("docker", buildInstallArgs(codePath, name), {
+export function runInstall(
+  codePath: string,
+  name: string,
+  projectType: ProjectType = "node",
+): void {
+  execFileSync("docker", buildInstallArgs(codePath, name, projectType), {
     timeout: 60_000,
     stdio: "pipe",
   });
@@ -88,10 +116,11 @@ export function startContainer(
   codePath: string,
   name: string,
   hostPort: number,
+  projectType: ProjectType = "node",
 ): string {
   const result = execFileSync(
     "docker",
-    buildRunArgs(codePath, name, hostPort),
+    buildRunArgs(codePath, name, hostPort, projectType),
     {
       timeout: 10_000,
       encoding: "utf-8",
