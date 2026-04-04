@@ -130,7 +130,7 @@ export function createWebhookHandler(deps: WebhookDeps) {
       }
 
       // Check free tier limit
-      if (installation.plan === "free" && installation.pr_count_month >= 3) {
+      if (installation.plan === "free" && installation.pr_count_month >= 50) {
         const [owner, repo] = payload.repository.full_name.split("/");
         await postPrComment(
           installationGithubId,
