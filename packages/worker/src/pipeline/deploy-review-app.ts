@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import {
   cpSync,
   existsSync,
@@ -173,16 +174,29 @@ export async function deployToPages(
 ): Promise<string> {
   const url = `${CF_API_BASE}/accounts/${cfAccountId}/pages/projects/${projectName}/deployments`;
 
-  // Build multipart form data with all files from dist
-  const formData = new FormData();
   const files = collectFiles(distDir);
+
+  // Build manifest: map file paths to SHA-256 content hashes
+  const manifest: Record<string, string> = {};
+  const hashToContent = new Map<string, Buffer>();
 
   for (const relPath of files) {
     const fullPath = path.join(distDir, relPath);
     const content = readFileSync(fullPath);
-    const blob = new Blob([content]);
-    // CF Pages expects file paths as the field name with "/" prefix
-    formData.append(`/${relPath}`, blob, relPath);
+    const hash = createHash("sha256").update(content).digest("hex");
+    const key = `/${relPath}`;
+    manifest[key] = hash;
+    if (!hashToContent.has(hash)) {
+      hashToContent.set(hash, content);
+    }
+  }
+
+  // Build multipart: manifest field + file blobs keyed by hash
+  const formData = new FormData();
+  formData.append("manifest", JSON.stringify(manifest));
+
+  for (const [hash, content] of hashToContent) {
+    formData.append(hash, new Blob([new Uint8Array(content)]));
   }
 
   const resp = await fetch(url, {
