@@ -18,7 +18,8 @@ RUN apt-get update && apt-get install -y gosu && rm -rf /var/lib/apt/lists/*
 RUN groupadd -f docker && usermod -aG docker node
 WORKDIR /app
 COPY --from=builder /app/node_modules ./node_modules
-# Install Playwright Chromium using the exact version from node_modules
+# Install Playwright Chromium to a shared path accessible by both root and node user
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 RUN npx playwright install --with-deps chromium
 COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
 COPY --from=builder /app/packages/shared/package.json ./packages/shared/
