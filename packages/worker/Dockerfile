@@ -10,8 +10,6 @@ COPY packages/worker/ packages/worker/
 RUN npm run build -w packages/shared && npm run build -w packages/worker
 
 FROM node:20-bookworm-slim
-# Install Playwright + Chromium dependencies
-RUN npx playwright install --with-deps chromium
 # Install Docker CLI (for spawning sandbox containers)
 RUN apt-get update && apt-get install -y docker.io && rm -rf /var/lib/apt/lists/*
 # gosu for dropping privileges after fixing permissions (Debian equivalent of su-exec)
@@ -20,6 +18,8 @@ RUN apt-get update && apt-get install -y gosu && rm -rf /var/lib/apt/lists/*
 RUN groupadd -f docker && usermod -aG docker node
 WORKDIR /app
 COPY --from=builder /app/node_modules ./node_modules
+# Install Playwright Chromium using the exact version from node_modules
+RUN npx playwright install --with-deps chromium
 COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
 COPY --from=builder /app/packages/shared/package.json ./packages/shared/
 COPY --from=builder /app/packages/worker/dist ./packages/worker/dist
