@@ -5,6 +5,29 @@ import path from "node:path";
 
 export type ProjectType = "node" | "static";
 
+// Detect the Docker host address from inside a container.
+// Uses the default gateway IP, which routes to the Docker host where
+// port-mapped sandbox containers are reachable.
+let cachedHostAddress: string | null = null;
+export function getDockerHostAddress(): string {
+  if (cachedHostAddress) return cachedHostAddress;
+  try {
+    const result = execFileSync("ip", ["route", "show", "default"], {
+      timeout: 5_000,
+      encoding: "utf-8",
+    });
+    const match = result.match(/via\s+(\S+)/);
+    if (match) {
+      cachedHostAddress = match[1];
+      return cachedHostAddress;
+    }
+  } catch {
+    // not in a container or ip command unavailable
+  }
+  cachedHostAddress = "localhost";
+  return cachedHostAddress;
+}
+
 export function detectProjectType(codePath: string): ProjectType {
   return existsSync(path.join(codePath, "package.json")) ? "node" : "static";
 }
@@ -218,7 +241,8 @@ export async function waitForReady(
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
     try {
-      const response = await fetch(`http://host.docker.internal:${port}/`);
+      const host = getDockerHostAddress();
+      const response = await fetch(`http://${host}:${port}/`);
       if (response.ok || response.status < 500) return;
     } catch {
       // not ready yet

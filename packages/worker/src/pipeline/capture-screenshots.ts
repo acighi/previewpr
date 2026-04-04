@@ -3,6 +3,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join, basename } from "node:path";
 import type { ChangeUnit } from "@previewpr/shared";
 import { createLogger } from "@previewpr/shared";
+import { getDockerHostAddress } from "../docker.js";
 
 // --- Types ---
 
@@ -85,6 +86,7 @@ export async function captureScreenshots(
   options: CaptureOptions,
 ): Promise<CaptureResult> {
   const { changes, routes, beforePort, afterPort, outputDir } = options;
+  const dockerHost = getDockerHostAddress();
 
   const frontendChanges = changes.filter(
     (c) => c.category === "frontend" || c.category === "shared",
@@ -116,7 +118,7 @@ export async function captureScreenshots(
         try {
           const beforeFile = `${routeName}-before.png`;
           const beforePath = join(screenshotDir, beforeFile);
-          await page.goto(`http://host.docker.internal:${beforePort}${route}`, {
+          await page.goto(`http://${dockerHost}:${beforePort}${route}`, {
             waitUntil: "networkidle",
             timeout: PAGE_TIMEOUT,
           });
@@ -132,7 +134,7 @@ export async function captureScreenshots(
         try {
           const afterFile = `${routeName}-after.png`;
           const afterPath = join(screenshotDir, afterFile);
-          await page.goto(`http://host.docker.internal:${afterPort}${route}`, {
+          await page.goto(`http://${dockerHost}:${afterPort}${route}`, {
             waitUntil: "networkidle",
             timeout: PAGE_TIMEOUT,
           });
