@@ -66,8 +66,10 @@ function runMigrations(db: Database.Database): void {
 
   for (const migration of MIGRATIONS) {
     if (migration.version > currentVersion) {
-      db.exec(migration.sql);
-      db.pragma(`user_version = ${migration.version}`);
+      db.transaction(() => {
+        db.exec(migration.sql);
+        db.pragma(`user_version = ${migration.version}`);
+      })();
     }
   }
 }

@@ -39,10 +39,9 @@ try {
     },
   ).trim();
   if (orphans) {
-    execFileSync("docker", ["rm", "-f", ...orphans.split("\n")]);
-    log.warn("Cleaned up orphaned containers", {
-      count: orphans.split("\n").length,
-    });
+    const ids = orphans.split("\n").filter(Boolean);
+    execFileSync("docker", ["rm", "-f", ...ids]);
+    log.warn("Cleaned up orphaned containers", { count: ids.length });
   }
 } catch {
   // Docker not available or no orphans — safe to continue
@@ -132,11 +131,11 @@ const worker = createWorkerProcessor(env.REDIS_URL, async (bullJob) => {
 
 const healthServer = createServer(async (req, res) => {
   if (req.url === "/health") {
-    try {
-      await worker.isRunning();
+    const running = worker.isRunning();
+    if (running) {
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ status: "ok" }));
-    } catch {
+    } else {
       res.writeHead(503, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ status: "error" }));
     }
@@ -148,14 +147,16 @@ const healthServer = createServer(async (req, res) => {
 healthServer.listen(env.HEALTH_PORT);
 
 log.info("Worker started", {
-  redis: env.REDIS_URL,
+  redis: new URL(env.REDIS_URL).hostname,
   healthPort: env.HEALTH_PORT,
 });
 
-process.on("SIGTERM", async () => {
-  log.info("Shutting down worker...");
-  healthServer.close();
-  await worker.close();
-  db.close();
-  process.exit(0);
-});
+for (const signal of ["SIGTERM", "SIGINT"] as const) {
+  process.on(signal, async () => {
+    log.info(`Received ${signal}, shutting down worker...`);
+    healthServer.close();
+    await worker.close();
+    db.close();
+    process.exit(0);
+  });
+}

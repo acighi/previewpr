@@ -64,8 +64,10 @@ async function main() {
       await client.ping();
       return { status: "ok" };
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      return reply.code(503).send({ status: "error", detail: message });
+      logger.error("Health check failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      return reply.code(503).send({ status: "error" });
     }
   });
 

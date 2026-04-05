@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { createServer } from "node:net";
 import path from "node:path";
+import { createLogger } from "@previewpr/shared";
 
 export type ProjectType = "node" | "static";
 
@@ -198,7 +199,7 @@ export function stopContainer(name: string): void {
     execFileSync("docker", ["stop", name], { timeout: 15_000, stdio: "pipe" });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    console.warn(`Warning: failed to stop container ${name}: ${msg}`);
+    createLogger().warn(`Failed to stop container ${name}`, { error: msg });
   }
   try {
     execFileSync("docker", ["rm", "-f", name], {
@@ -207,7 +208,7 @@ export function stopContainer(name: string): void {
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    console.warn(`Warning: failed to remove container ${name}: ${msg}`);
+    createLogger().warn(`Failed to remove container ${name}`, { error: msg });
   }
 }
 
