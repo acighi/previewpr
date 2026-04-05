@@ -196,16 +196,18 @@ export function startContainer(
 export function stopContainer(name: string): void {
   try {
     execFileSync("docker", ["stop", name], { timeout: 15_000, stdio: "pipe" });
-  } catch {
-    // ignore
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.warn(`Warning: failed to stop container ${name}: ${msg}`);
   }
   try {
     execFileSync("docker", ["rm", "-f", name], {
       timeout: 10_000,
       stdio: "pipe",
     });
-  } catch {
-    // ignore
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.warn(`Warning: failed to remove container ${name}: ${msg}`);
   }
 }
 
