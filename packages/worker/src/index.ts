@@ -4,6 +4,7 @@ import {
   initGitHubApp,
   getCloneToken,
   postPrComment,
+  updatePrComment,
   createDb,
   createWorkerProcessor,
   createLogger,
@@ -42,13 +43,24 @@ async function processJob(job: PipelineJobData): Promise<void> {
     const reviewUrl = await runPipeline(job, ctx);
 
     const [owner, repo] = job.repoFullName.split("/");
-    await postPrComment(
-      job.installationGithubId,
-      owner,
-      repo,
-      job.prNumber,
-      `## PreviewPR Review Ready\n\nVisual review is ready: ${reviewUrl}`,
-    );
+    const body = `## PreviewPR Review Ready\n\nVisual review is ready: ${reviewUrl}`;
+    if (job.commentId) {
+      await updatePrComment(
+        job.installationGithubId,
+        owner,
+        repo,
+        job.commentId,
+        body,
+      );
+    } else {
+      await postPrComment(
+        job.installationGithubId,
+        owner,
+        repo,
+        job.prNumber,
+        body,
+      );
+    }
 
     jobLog.info("Job completed", { reviewUrl });
   } catch (err) {
@@ -59,15 +71,26 @@ async function processJob(job: PipelineJobData): Promise<void> {
 
     try {
       const [owner, repo] = job.repoFullName.split("/");
-      await postPrComment(
-        job.installationGithubId,
-        owner,
-        repo,
-        job.prNumber,
-        `## PreviewPR Error\n\nPipeline failed. Check the dashboard for details.`,
-      );
+      const body = `## PreviewPR Error\n\nPipeline failed. Check the dashboard for details.`;
+      if (job.commentId) {
+        await updatePrComment(
+          job.installationGithubId,
+          owner,
+          repo,
+          job.commentId,
+          body,
+        );
+      } else {
+        await postPrComment(
+          job.installationGithubId,
+          owner,
+          repo,
+          job.prNumber,
+          body,
+        );
+      }
     } catch (commentErr) {
-      jobLog.error("Failed to post error comment", {
+      jobLog.error("Failed to update/post error comment", {
         error:
           commentErr instanceof Error ? commentErr.message : String(commentErr),
       });

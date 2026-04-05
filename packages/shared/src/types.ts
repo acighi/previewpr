@@ -93,4 +93,5 @@ export interface PipelineJobData {
   prBranch: string;
   baseBranch: string;
   headSha: string;
+  commentId?: number;
 }

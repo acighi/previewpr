@@ -43,7 +43,7 @@ interface WebhookDeps {
     repo: string,
     prNumber: number,
     body: string,
-  ) => Promise<void>;
+  ) => Promise<number>;
 }
 
 interface WebhookRequest extends FastifyRequest {
@@ -161,7 +161,20 @@ export function createWebhookHandler(deps: WebhookDeps) {
 
       incrementPrCount(db, installation.id);
 
-      // Enqueue to BullMQ
+      // Generate HMAC token for the job status URL
+      const jobToken = createJobToken(jobId, webhookSecret);
+
+      // Post "generating..." comment with authenticated status link
+      const [owner, repo] = repoFullName.split("/");
+      const commentId = await postPrComment(
+        installationGithubId,
+        owner,
+        repo,
+        pr.number,
+        `Generating visual review... This usually takes 1-2 minutes.\n\n[Check status](https://api.previewpr.com/jobs/${jobId}?token=${jobToken})`,
+      );
+
+      // Enqueue to BullMQ with comment ID so worker can update it
       await queue.add("pipeline", {
         jobId,
         installationGithubId,
@@ -170,20 +183,8 @@ export function createWebhookHandler(deps: WebhookDeps) {
         prBranch: pr.head.ref,
         baseBranch: pr.base.ref,
         headSha: pr.head.sha,
+        commentId,
       });
-
-      // Generate HMAC token for the job status URL
-      const jobToken = createJobToken(jobId, webhookSecret);
-
-      // Post "generating..." comment with authenticated status link
-      const [owner, repo] = repoFullName.split("/");
-      await postPrComment(
-        installationGithubId,
-        owner,
-        repo,
-        pr.number,
-        `Generating visual review... This usually takes 1-2 minutes.\n\n[Check status](https://api.previewpr.com/jobs/${jobId}?token=${jobToken})`,
-      );
 
       logger.info("Job created for PR", {
         jobId,

@@ -31,11 +31,26 @@ export async function postPrComment(
   repo: string,
   prNumber: number,
   body: string,
+): Promise<number> {
+  const octokit = await getInstallationOctokit(installationId);
+  const { data } = await octokit.request(
+    "POST /repos/{owner}/{repo}/issues/{issue_number}/comments",
+    { owner, repo, issue_number: prNumber, body },
+  );
+  return data.id;
+}
+
+export async function updatePrComment(
+  installationId: number,
+  owner: string,
+  repo: string,
+  commentId: number,
+  body: string,
 ): Promise<void> {
   const octokit = await getInstallationOctokit(installationId);
   await octokit.request(
-    "POST /repos/{owner}/{repo}/issues/{issue_number}/comments",
-    { owner, repo, issue_number: prNumber, body },
+    "PATCH /repos/{owner}/{repo}/issues/comments/{comment_id}",
+    { owner, repo, comment_id: commentId, body },
   );
 }
 
