@@ -1,4 +1,6 @@
 import path from "node:path";
+import { execFileSync } from "node:child_process";
+import { createServer } from "node:http";
 import { mkdirSync } from "node:fs";
 import {
   initGitHubApp,
@@ -13,7 +15,11 @@ import {
   type PipelineJobData,
 } from "@previewpr/shared";
 import { loadEnv } from "./env.js";
-import { runPipeline, type PipelineContext } from "./pipeline.js";
+import {
+  runPipeline,
+  PIPELINE_TIMEOUT,
+  type PipelineContext,
+} from "./pipeline.js";
 
 const log = createLogger();
 
@@ -22,6 +28,25 @@ const env = loadEnv();
 initGitHubApp(env.GITHUB_APP_ID, env.GITHUB_PRIVATE_KEY);
 const db = createDb(env.DATABASE_PATH);
 mkdirSync(env.JOBS_DIR, { recursive: true });
+
+// Clean up orphaned containers from previous crashes
+try {
+  const orphans = execFileSync(
+    "docker",
+    ["ps", "-aq", "--filter", "name=ppr-"],
+    {
+      encoding: "utf-8",
+    },
+  ).trim();
+  if (orphans) {
+    execFileSync("docker", ["rm", "-f", ...orphans.split("\n")]);
+    log.warn("Cleaned up orphaned containers", {
+      count: orphans.split("\n").length,
+    });
+  }
+} catch {
+  // Docker not available or no orphans — safe to continue
+}
 
 async function processJob(job: PipelineJobData): Promise<void> {
   const jobLog = createLogger({ jobId: job.jobId });
@@ -40,7 +65,15 @@ async function processJob(job: PipelineJobData): Promise<void> {
       cfAccountId: env.CF_ACCOUNT_ID,
     };
 
-    const reviewUrl = await runPipeline(job, ctx);
+    const timeoutErr = new Error(
+      `Pipeline timed out after ${PIPELINE_TIMEOUT / 1000}s`,
+    );
+    const reviewUrl = await Promise.race([
+      runPipeline(job, ctx),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(timeoutErr), PIPELINE_TIMEOUT),
+      ),
+    ]);
 
     const [owner, repo] = job.repoFullName.split("/");
     const body = `## PreviewPR Review Ready\n\nVisual review is ready: ${reviewUrl}`;
@@ -80,17 +113,10 @@ async function processJob(job: PipelineJobData): Promise<void> {
           job.commentId,
           body,
         );
-      } else {
-        await postPrComment(
-          job.installationGithubId,
-          owner,
-          repo,
-          job.prNumber,
-          body,
-        );
       }
+      // If no commentId, don't post a new comment — avoids duplicates on retry
     } catch (commentErr) {
-      jobLog.error("Failed to update/post error comment", {
+      jobLog.error("Failed to update error comment", {
         error:
           commentErr instanceof Error ? commentErr.message : String(commentErr),
       });
@@ -104,10 +130,31 @@ const worker = createWorkerProcessor(env.REDIS_URL, async (bullJob) => {
   await processJob(bullJob.data);
 });
 
-log.info("Worker started", { redis: env.REDIS_URL });
+const healthServer = createServer(async (req, res) => {
+  if (req.url === "/health") {
+    try {
+      await worker.isRunning();
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ status: "ok" }));
+    } catch {
+      res.writeHead(503, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ status: "error" }));
+    }
+  } else {
+    res.writeHead(404);
+    res.end();
+  }
+});
+healthServer.listen(env.HEALTH_PORT);
+
+log.info("Worker started", {
+  redis: env.REDIS_URL,
+  healthPort: env.HEALTH_PORT,
+});
 
 process.on("SIGTERM", async () => {
   log.info("Shutting down worker...");
+  healthServer.close();
   await worker.close();
   db.close();
   process.exit(0);

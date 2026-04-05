@@ -7,6 +7,7 @@ export interface WorkerEnv {
   CF_API_TOKEN: string;
   CF_ACCOUNT_ID: string;
   JOBS_DIR: string;
+  HEALTH_PORT: number;
 }
 
 function required(name: string): string {
@@ -53,5 +54,6 @@ export function loadEnv(): WorkerEnv {
     CF_API_TOKEN: required("CF_API_TOKEN"),
     CF_ACCOUNT_ID: required("CF_ACCOUNT_ID"),
     JOBS_DIR: process.env.JOBS_DIR ?? "/tmp/previewpr-jobs",
+    HEALTH_PORT: Number(process.env.HEALTH_PORT || "3001"),
   };
 }
