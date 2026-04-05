@@ -1,4 +1,5 @@
 import Fastify from "fastify";
+import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
 import {
   createDb,
@@ -25,6 +26,11 @@ async function main() {
   initGitHubApp(env.GITHUB_APP_ID, env.GITHUB_PRIVATE_KEY);
 
   const app = Fastify({ logger: false });
+
+  // Security headers
+  await app.register(helmet, {
+    contentSecurityPolicy: false, // API-only, no HTML served
+  });
 
   // Rate limiting — global by default, individual routes can override
   await app.register(rateLimit, {
@@ -101,41 +107,41 @@ async function main() {
       const installationId = request.query.installation_id;
       const code = request.query.code;
 
-      if (!installationId) {
-        return reply.code(400).send({ error: "Missing installation_id" });
+      if (!code || !installationId) {
+        return reply
+          .code(400)
+          .send({ error: "Missing code or installation_id" });
       }
 
-      // If we have an OAuth code, exchange it to verify the request is authentic
-      if (code) {
-        try {
-          const tokenResp = await fetch(
-            "https://github.com/login/oauth/access_token",
-            {
-              method: "POST",
-              headers: {
-                Accept: "application/json",
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
-                client_id: env.GITHUB_CLIENT_ID,
-                client_secret: env.GITHUB_CLIENT_SECRET,
-                code,
-              }),
+      // Exchange OAuth code to verify the request is authentic
+      try {
+        const tokenResp = await fetch(
+          "https://github.com/login/oauth/access_token",
+          {
+            method: "POST",
+            headers: {
+              Accept: "application/json",
+              "Content-Type": "application/json",
             },
-          );
-          const tokenData = (await tokenResp.json()) as Record<string, unknown>;
-          if (tokenData.error || !tokenData.access_token) {
-            logger.warn("OAuth code exchange failed", {
-              error: tokenData.error,
-            });
-            return reply.code(403).send({ error: "Invalid OAuth code" });
-          }
-        } catch (err) {
-          logger.error("OAuth verification failed", {
-            error: scrubSecrets(String(err)),
+            body: JSON.stringify({
+              client_id: env.GITHUB_CLIENT_ID,
+              client_secret: env.GITHUB_CLIENT_SECRET,
+              code,
+            }),
+          },
+        );
+        const tokenData = (await tokenResp.json()) as Record<string, unknown>;
+        if (tokenData.error || !tokenData.access_token) {
+          logger.warn("OAuth code exchange failed", {
+            error: tokenData.error,
           });
-          return reply.code(500).send({ error: "OAuth verification failed" });
+          return reply.code(403).send({ error: "Invalid OAuth code" });
         }
+      } catch (err) {
+        logger.error("OAuth verification failed", {
+          error: scrubSecrets(String(err)),
+        });
+        return reply.code(500).send({ error: "OAuth verification failed" });
       }
 
       // Store minimal installation record; webhook will fill details
@@ -180,6 +186,7 @@ async function main() {
       }
 
       // Return safe subset — never expose raw error_message to external callers
+      reply.header("Cache-Control", "no-store");
       return reply.send({
         id: job.id,
         repo_full_name: job.repo_full_name,
