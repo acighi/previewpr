@@ -215,8 +215,15 @@ describe("database", () => {
 
     removeInstallation(db, 99);
 
+    // getInstallation now filters out soft-deleted installations
     const inst = getInstallation(db, 99);
-    expect(inst!.plan).toBe("removed");
+    expect(inst).toBeNull();
+
+    // Verify the row still exists with plan='removed' via raw query
+    const row = db
+      .prepare("SELECT plan FROM installations WHERE github_id = ?")
+      .get(99) as { plan: string };
+    expect(row.plan).toBe("removed");
   });
 
   it("updateInstallationRepos updates repos JSON", () => {

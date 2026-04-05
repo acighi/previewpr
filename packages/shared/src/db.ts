@@ -109,7 +109,9 @@ export function getInstallation(
   githubId: number,
 ): Installation | null {
   const row = db
-    .prepare("SELECT * FROM installations WHERE github_id = ?")
+    .prepare(
+      "SELECT * FROM installations WHERE github_id = ? AND plan != 'removed'",
+    )
     .get(githubId) as Record<string, unknown> | undefined;
   if (!row) return null;
   return {
