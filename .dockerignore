@@ -1,0 +1,15 @@
+node_modules/
+packages/*/node_modules/
+packages/*/dist/
+packages/worker/review-app/node_modules/
+.git/
+.env
+.env.*
+*.db
+*.db-shm
+*.db-wal
+/tmp/
+docs/
+landing/
+.claude/
+.worktrees/
