@@ -1,3 +1,5 @@
+import { scrubSecrets } from "./security.js";
+
 export interface LogEntry {
   timestamp: string;
   level: "info" | "warn" | "error";
@@ -22,10 +24,14 @@ export function createLogger(context?: { jobId?: string }): Logger {
     const entry: LogEntry = {
       timestamp: new Date().toISOString(),
       level,
-      message,
+      message: scrubSecrets(message),
       ...context,
-      ...extra,
     };
+    if (extra) {
+      for (const [k, v] of Object.entries(extra)) {
+        entry[k] = typeof v === "string" ? scrubSecrets(v) : v;
+      }
+    }
     process.stdout.write(JSON.stringify(entry) + "\n");
   }
 
