@@ -55,7 +55,10 @@ const MIGRATIONS: Migration[] = [
       );
     `,
   },
-  // Future migrations go here as { version: 2, sql: "ALTER TABLE ..." }
+  {
+    version: 2,
+    sql: `ALTER TABLE installations ADD COLUMN pr_count_reset_at TEXT NOT NULL DEFAULT (datetime('now'));`,
+  },
 ];
 
 function runMigrations(db: Database.Database): void {
@@ -126,6 +129,27 @@ export function incrementPrCount(
 
 export function resetMonthlyCounts(db: Database.Database): void {
   db.prepare("UPDATE installations SET pr_count_month = 0").run();
+}
+
+export function checkAndResetMonthlyCount(
+  db: Database.Database,
+  installationId: number,
+): void {
+  const row = db
+    .prepare("SELECT pr_count_reset_at FROM installations WHERE id = ?")
+    .get(installationId) as { pr_count_reset_at: string } | undefined;
+  if (!row) return;
+
+  const resetDate = new Date(row.pr_count_reset_at + "Z");
+  const now = new Date();
+  if (
+    now.getUTCMonth() !== resetDate.getUTCMonth() ||
+    now.getUTCFullYear() !== resetDate.getUTCFullYear()
+  ) {
+    db.prepare(
+      "UPDATE installations SET pr_count_month = 0, pr_count_reset_at = datetime('now') WHERE id = ?",
+    ).run(installationId);
+  }
 }
 
 export function insertJob(db: Database.Database, data: InsertJob): string {

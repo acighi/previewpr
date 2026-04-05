@@ -8,6 +8,7 @@ import {
   insertInstallation,
   insertJob,
   incrementPrCount,
+  checkAndResetMonthlyCount,
   removeInstallation,
   updateInstallationRepos,
   createLogger,
@@ -129,8 +130,19 @@ export function createWebhookHandler(deps: WebhookDeps) {
         return reply.code(404).send({ error: "Installation not found" });
       }
 
+      // Reset monthly count if we've crossed into a new month
+      checkAndResetMonthlyCount(db, installation.id);
+      // Re-fetch to get potentially updated count
+      const freshInstallation = getInstallation(db, installationGithubId);
+      if (!freshInstallation) {
+        return reply.code(404).send({ error: "Installation not found" });
+      }
+
       // Check free tier limit
-      if (installation.plan === "free" && installation.pr_count_month >= 50) {
+      if (
+        freshInstallation.plan === "free" &&
+        freshInstallation.pr_count_month >= 50
+      ) {
         const [owner, repo] = payload.repository.full_name.split("/");
         await postPrComment(
           installationGithubId,
