@@ -1,5 +1,11 @@
 import { execFileSync } from "node:child_process";
-import { mkdirSync, rmSync, writeFileSync, chmodSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  rmSync,
+  writeFileSync,
+  chmodSync,
+} from "node:fs";
 import path from "node:path";
 import type Database from "better-sqlite3";
 import {
@@ -130,6 +136,11 @@ export async function runPipeline(
   job: PipelineJobData,
   ctx: PipelineContext,
 ): Promise<string> {
+  // Clean stale state from a previous failed attempt (BullMQ retry)
+  if (existsSync(ctx.jobDir)) {
+    rmSync(ctx.jobDir, { recursive: true });
+  }
+
   const log = createLogger({ jobId: job.jobId });
   let mainContainer: string | null = null;
   let prContainer: string | null = null;
