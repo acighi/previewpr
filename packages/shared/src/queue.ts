@@ -42,5 +42,7 @@ export function createWorkerProcessor(
   return new Worker<PipelineJobData>(QUEUE_NAME, processor, {
     connection,
     concurrency: 2,
+    lockDuration: 600_000, // 10 min — pipeline runs up to 5 min
+    lockRenewTime: 150_000, // renew every 2.5 min
   });
 }
