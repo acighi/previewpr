@@ -96,18 +96,22 @@ export function createWebhookHandler(deps: WebhookDeps) {
 
     if (event === "installation_repositories") {
       const githubId = payload.installation.id;
-      if (payload.action === "added" || payload.action === "removed") {
-        // Gather current repo list from payload
-        const repos = (
-          payload.repositories_added ||
-          payload.repositories ||
-          []
-        ).map((r: { full_name: string }) => r.full_name);
+      if (payload.action === "added") {
+        const repos = (payload.repositories_added || []).map(
+          (r: { full_name: string }) => r.full_name,
+        );
         updateInstallationRepos(db, githubId, repos);
-        logger.info("Installation repos updated", {
+        logger.info("Installation repos added", { github_id: githubId });
+      } else if (payload.action === "removed") {
+        const removed = (payload.repositories_removed || []).map(
+          (r: { full_name: string }) => r.full_name,
+        );
+        logger.info("Installation repos removed", {
           github_id: githubId,
-          action: payload.action,
+          repos: removed,
         });
+        // Note: updateInstallationRepos currently replaces the full list.
+        // For now, log the removal. Full diff-based update is Phase 2.
       }
       return reply.send({ ok: true });
     }
