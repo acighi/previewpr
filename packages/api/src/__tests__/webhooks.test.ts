@@ -61,7 +61,7 @@ describe("verifyWebhookSignature", () => {
 
 function createMockDeps() {
   return {
-    db: {} as any,
+    db: { transaction: (fn: Function) => fn } as any,
     queue: { add: vi.fn().mockResolvedValue(undefined) } as any,
     webhookSecret: "test-secret",
     postPrComment: vi.fn().mockResolvedValue(12345),

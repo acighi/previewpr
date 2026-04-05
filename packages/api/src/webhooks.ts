@@ -163,19 +163,21 @@ export function createWebhookHandler(deps: WebhookDeps) {
         });
       }
 
-      // Insert job and increment PR count
+      // Insert job and increment PR count atomically
       const pr = payload.pull_request;
       const repoFullName = payload.repository.full_name;
-      const jobId = insertJob(db, {
-        installation_id: installation.id,
-        repo_full_name: repoFullName,
-        pr_number: pr.number,
-        pr_branch: pr.head.ref,
-        base_branch: pr.base.ref,
-        head_sha: pr.head.sha,
-      });
-
-      incrementPrCount(db, installation.id);
+      const jobId = db.transaction(() => {
+        const id = insertJob(db, {
+          installation_id: installation.id,
+          repo_full_name: repoFullName,
+          pr_number: pr.number,
+          pr_branch: pr.head.ref,
+          base_branch: pr.base.ref,
+          head_sha: pr.head.sha,
+        });
+        incrementPrCount(db, installation.id);
+        return id;
+      })();
 
       // Generate HMAC token for the job status URL
       const jobToken = createJobToken(jobId, webhookSecret);
