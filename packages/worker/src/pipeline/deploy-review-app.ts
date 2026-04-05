@@ -50,6 +50,7 @@ export async function ensureCfPagesProject(
   const url = `${CF_API_BASE}/accounts/${cfAccountId}/pages/projects/${projectName}`;
   const resp = await fetch(url, {
     headers: { Authorization: `Bearer ${cfApiToken}` },
+    signal: AbortSignal.timeout(30_000),
   });
 
   if (resp.ok) return; // project exists
@@ -66,6 +67,7 @@ export async function ensureCfPagesProject(
         name: projectName,
         production_branch: "main",
       }),
+      signal: AbortSignal.timeout(30_000),
     });
 
     if (!createResp.ok) {
@@ -203,6 +205,7 @@ export async function deployToPages(
     method: "POST",
     headers: { Authorization: `Bearer ${cfApiToken}` },
     body: formData,
+    signal: AbortSignal.timeout(60_000), // upload can be larger, 60s
   });
 
   if (!resp.ok) {
