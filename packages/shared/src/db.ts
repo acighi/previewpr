@@ -9,50 +9,73 @@ import type {
   JobStatus,
 } from "./types.js";
 
-const SCHEMA = `
-  CREATE TABLE IF NOT EXISTS installations (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    github_id INTEGER UNIQUE NOT NULL,
-    account_login TEXT NOT NULL,
-    account_type TEXT NOT NULL,
-    repos TEXT NOT NULL DEFAULT '"all"',
-    plan TEXT NOT NULL DEFAULT 'free',
-    pr_count_month INTEGER NOT NULL DEFAULT 0,
-    created_at TEXT NOT NULL DEFAULT (datetime('now'))
-  );
+interface Migration {
+  version: number;
+  sql: string;
+}
 
-  CREATE TABLE IF NOT EXISTS jobs (
-    id TEXT PRIMARY KEY,
-    installation_id INTEGER NOT NULL,
-    repo_full_name TEXT NOT NULL,
-    pr_number INTEGER NOT NULL,
-    pr_branch TEXT NOT NULL,
-    base_branch TEXT NOT NULL,
-    head_sha TEXT NOT NULL,
-    status TEXT NOT NULL DEFAULT 'queued',
-    review_url TEXT,
-    error_message TEXT,
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    completed_at TEXT,
-    FOREIGN KEY (installation_id) REFERENCES installations(id)
-  );
+const MIGRATIONS: Migration[] = [
+  {
+    version: 1,
+    sql: `
+      CREATE TABLE IF NOT EXISTS installations (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        github_id INTEGER UNIQUE NOT NULL,
+        account_login TEXT NOT NULL,
+        account_type TEXT NOT NULL,
+        repos TEXT NOT NULL DEFAULT '"all"',
+        plan TEXT NOT NULL DEFAULT 'free',
+        pr_count_month INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
 
-  CREATE TABLE IF NOT EXISTS reviews (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    job_id TEXT NOT NULL,
-    reviewer_github TEXT NOT NULL,
-    decisions TEXT NOT NULL,
-    submitted_at TEXT NOT NULL DEFAULT (datetime('now')),
-    FOREIGN KEY (job_id) REFERENCES jobs(id)
-  );
-`;
+      CREATE TABLE IF NOT EXISTS jobs (
+        id TEXT PRIMARY KEY,
+        installation_id INTEGER NOT NULL,
+        repo_full_name TEXT NOT NULL,
+        pr_number INTEGER NOT NULL,
+        pr_branch TEXT NOT NULL,
+        base_branch TEXT NOT NULL,
+        head_sha TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'queued',
+        review_url TEXT,
+        error_message TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        completed_at TEXT,
+        FOREIGN KEY (installation_id) REFERENCES installations(id)
+      );
+
+      CREATE TABLE IF NOT EXISTS reviews (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        job_id TEXT NOT NULL,
+        reviewer_github TEXT NOT NULL,
+        decisions TEXT NOT NULL,
+        submitted_at TEXT NOT NULL DEFAULT (datetime('now')),
+        FOREIGN KEY (job_id) REFERENCES jobs(id)
+      );
+    `,
+  },
+  // Future migrations go here as { version: 2, sql: "ALTER TABLE ..." }
+];
+
+function runMigrations(db: Database.Database): void {
+  const currentVersion = db.pragma("user_version", { simple: true }) as number;
+
+  for (const migration of MIGRATIONS) {
+    if (migration.version > currentVersion) {
+      db.exec(migration.sql);
+      db.pragma(`user_version = ${migration.version}`);
+    }
+  }
+}
 
 export function createDb(path: string): Database.Database {
   const db = new Database(path);
   if (path !== ":memory:") {
     db.pragma("journal_mode = WAL");
   }
-  db.exec(SCHEMA);
+  db.pragma("busy_timeout = 5000");
+  runMigrations(db);
   return db;
 }
 
