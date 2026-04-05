@@ -50,9 +50,17 @@ async function main() {
     },
   );
 
-  // Health check
-  app.get("/health", async () => {
-    return { status: "ok" };
+  // Health check — verifies DB and Redis connectivity
+  app.get("/health", async (_, reply) => {
+    try {
+      db.prepare("SELECT 1").get();
+      const client = await queue.client;
+      await client.ping();
+      return { status: "ok" };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return reply.code(503).send({ status: "error", detail: message });
+    }
   });
 
   // Webhook endpoint with stricter rate limit
@@ -187,6 +195,15 @@ async function main() {
   // Start server
   await app.listen({ host: "0.0.0.0", port: env.PORT });
   logger.info(`API server listening on port ${env.PORT}`);
+
+  for (const signal of ["SIGTERM", "SIGINT"] as const) {
+    process.on(signal, async () => {
+      logger.info(`Received ${signal}, shutting down`);
+      await app.close();
+      db.close();
+      process.exit(0);
+    });
+  }
 }
 
 main().catch((err) => {
