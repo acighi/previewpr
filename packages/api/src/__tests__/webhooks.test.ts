@@ -5,6 +5,7 @@ import crypto from "node:crypto";
 const mockGetInstallation = vi.fn();
 const mockInsertJob = vi.fn();
 const mockIncrementPrCount = vi.fn();
+const mockCheckAndResetMonthlyCount = vi.fn();
 const mockInsertInstallation = vi.fn();
 const mockRemoveInstallation = vi.fn();
 const mockUpdateInstallationRepos = vi.fn();
@@ -16,6 +17,8 @@ vi.mock("@previewpr/shared", async (importOriginal) => {
     getInstallation: (...args: unknown[]) => mockGetInstallation(...args),
     insertJob: (...args: unknown[]) => mockInsertJob(...args),
     incrementPrCount: (...args: unknown[]) => mockIncrementPrCount(...args),
+    checkAndResetMonthlyCount: (...args: unknown[]) =>
+      mockCheckAndResetMonthlyCount(...args),
     insertInstallation: (...args: unknown[]) => mockInsertInstallation(...args),
     removeInstallation: (...args: unknown[]) => mockRemoveInstallation(...args),
     updateInstallationRepos: (...args: unknown[]) =>
