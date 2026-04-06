@@ -100,6 +100,15 @@ export function deployToPages(
 ): string {
   // wrangler pages deploy handles the full upload flow:
   // BLAKE3 hashing, check-missing, upload, upsert-hashes, create deployment
+  //
+  // cwd is set to distDir's parent (writable /tmp/) so wrangler can create its
+  // .wrangler/ cache — the default /app/ cwd is root-owned in Docker.
+  // We prepend the app's node_modules/.bin to PATH so npx finds wrangler
+  // without trying to download it (cwd is outside the app tree).
+  const appBin = path.resolve(
+    import.meta.dirname,
+    "../../../../node_modules/.bin",
+  );
   const output = execFileSync(
     "npx",
     [
@@ -113,11 +122,10 @@ export function deployToPages(
     {
       timeout: 120_000,
       stdio: "pipe",
-      // Use distDir's parent as cwd so wrangler can create its .wrangler/ cache
-      // (the default /app/ cwd is root-owned in Docker, node user can't write there)
       cwd: path.dirname(distDir),
       env: {
         ...process.env,
+        PATH: `${appBin}:${process.env.PATH}`,
         CLOUDFLARE_API_TOKEN: cfApiToken,
         CLOUDFLARE_ACCOUNT_ID: cfAccountId,
       },
