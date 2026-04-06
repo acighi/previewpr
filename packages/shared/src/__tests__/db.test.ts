@@ -12,6 +12,7 @@ import {
   insertReview,
   removeInstallation,
   updateInstallationRepos,
+  checkAndResetMonthlyCount,
 } from "../db.js";
 
 describe("database", () => {
@@ -240,5 +241,62 @@ describe("database", () => {
 
     const inst = getInstallation(db, 50);
     expect(inst!.repos).toEqual(["new-repo-a", "new-repo-b"]);
+  });
+
+  it("checkAndResetMonthlyCount resets count in a new month", () => {
+    insertInstallation(db, {
+      github_id: 200,
+      account_login: "monthly-test",
+      account_type: "User",
+      repos: "all",
+      plan: "free",
+    });
+
+    const inst = getInstallation(db, 200)!;
+
+    // Set count to 5 and reset_at to last month
+    db.prepare(
+      "UPDATE installations SET pr_count_month = 5, pr_count_reset_at = '2025-01-15 12:00:00' WHERE id = ?",
+    ).run(inst.id);
+
+    checkAndResetMonthlyCount(db, inst.id);
+
+    const after = getInstallation(db, 200)!;
+    expect(after.pr_count_month).toBe(0);
+  });
+
+  it("checkAndResetMonthlyCount does not reset within same month", () => {
+    insertInstallation(db, {
+      github_id: 201,
+      account_login: "monthly-test-2",
+      account_type: "User",
+      repos: "all",
+      plan: "free",
+    });
+
+    const inst = getInstallation(db, 201)!;
+
+    // Set count to 5, reset_at to now (same month)
+    db.prepare(
+      "UPDATE installations SET pr_count_month = 5, pr_count_reset_at = datetime('now') WHERE id = ?",
+    ).run(inst.id);
+
+    checkAndResetMonthlyCount(db, inst.id);
+
+    const after = getInstallation(db, 201)!;
+    expect(after.pr_count_month).toBe(5);
+  });
+
+  it("createDb is idempotent — running twice does not error", () => {
+    const testPath = "/tmp/test-idempotent.db";
+    const db1 = createDb(testPath);
+    db1.close();
+
+    const db2 = createDb(testPath);
+    const version = db2.pragma("user_version", { simple: true });
+    expect(version).toBeGreaterThanOrEqual(1);
+    db2.close();
+
+    require("fs").unlinkSync(testPath);
   });
 });

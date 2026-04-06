@@ -92,6 +92,7 @@ async function main() {
     webhookHandler as any,
   );
 
+  // TODO: Extract install callback handler into a testable function (Phase 3)
   // Installation callback — validates with GitHub OAuth code exchange
   app.get<{
     Querystring: { installation_id?: string; code?: string; state?: string };
