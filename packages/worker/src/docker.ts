@@ -146,10 +146,10 @@ export function buildRunArgs(
     "--security-opt=no-new-privileges",
   ];
 
-  // All containers get network isolation to prevent SSRF
-  args.push("--network=none");
+  // Node projects get full network isolation + tmpfs; static projects need
+  // bridge networking for host→container port mapping during screenshots
   if (projectType === "node") {
-    args.push("--tmpfs", "/tmp:rw,noexec,size=100m");
+    args.push("--network=none", "--tmpfs", "/tmp:rw,noexec,size=100m");
   }
 
   args.push(
