@@ -62,6 +62,10 @@ const MIGRATIONS: Migration[] = [
       UPDATE installations SET pr_count_reset_at = datetime('now') WHERE pr_count_reset_at = '1970-01-01 00:00:00';
     `,
   },
+  {
+    version: 3,
+    sql: `CREATE UNIQUE INDEX IF NOT EXISTS idx_jobs_dedup ON jobs(repo_full_name, pr_number, head_sha) WHERE status IN ('queued', 'running');`,
+  },
 ];
 
 function runMigrations(db: Database.Database): void {
@@ -162,21 +166,26 @@ export function checkAndResetMonthlyCount(
   }
 }
 
-export function insertJob(db: Database.Database, data: InsertJob): string {
+export function insertJob(
+  db: Database.Database,
+  data: InsertJob,
+): string | null {
   const id = randomUUID();
-  db.prepare(
-    `INSERT INTO jobs (id, installation_id, repo_full_name, pr_number, pr_branch, base_branch, head_sha)
+  const result = db
+    .prepare(
+      `INSERT OR IGNORE INTO jobs (id, installation_id, repo_full_name, pr_number, pr_branch, base_branch, head_sha)
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
-  ).run(
-    id,
-    data.installation_id,
-    data.repo_full_name,
-    data.pr_number,
-    data.pr_branch,
-    data.base_branch,
-    data.head_sha,
-  );
-  return id;
+    )
+    .run(
+      id,
+      data.installation_id,
+      data.repo_full_name,
+      data.pr_number,
+      data.pr_branch,
+      data.base_branch,
+      data.head_sha,
+    );
+  return result.changes > 0 ? id : null;
 }
 
 export function getJob(db: Database.Database, jobId: string): Job | null {
@@ -241,6 +250,28 @@ export function updateInstallationRepos(
 ): void {
   db.prepare("UPDATE installations SET repos = ? WHERE github_id = ?").run(
     JSON.stringify(repos),
+    githubId,
+  );
+}
+
+export function removeReposFromInstallation(
+  db: Database.Database,
+  githubId: number,
+  reposToRemove: string[],
+): void {
+  const row = db
+    .prepare("SELECT repos FROM installations WHERE github_id = ?")
+    .get(githubId) as { repos: string } | undefined;
+  if (!row) return;
+
+  const current = JSON.parse(row.repos);
+  if (current === "all") return; // can't subtract from "all"
+
+  const updated = (current as string[]).filter(
+    (r: string) => !reposToRemove.includes(r),
+  );
+  db.prepare("UPDATE installations SET repos = ? WHERE github_id = ?").run(
+    JSON.stringify(updated.length > 0 ? updated : "all"),
     githubId,
   );
 }

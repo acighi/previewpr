@@ -93,10 +93,11 @@ describe("database", () => {
       head_sha: "abc123",
     });
 
+    expect(jobId).not.toBeNull();
     expect(typeof jobId).toBe("string");
-    expect(jobId.length).toBeGreaterThan(0);
+    expect(jobId!.length).toBeGreaterThan(0);
 
-    const job = getJob(db, jobId);
+    const job = getJob(db, jobId!);
     expect(job).not.toBeNull();
     expect(job!.status).toBe("queued");
     expect(job!.repo_full_name).toBe("test/repo");
@@ -123,8 +124,8 @@ describe("database", () => {
       head_sha: "def456",
     });
 
-    updateJobStatus(db, jobId, "running");
-    const job = getJob(db, jobId);
+    updateJobStatus(db, jobId!, "running");
+    const job = getJob(db, jobId!);
     expect(job!.status).toBe("running");
   });
 
@@ -146,11 +147,11 @@ describe("database", () => {
       head_sha: "ghi789",
     });
 
-    updateJobStatus(db, jobId, "completed", {
+    updateJobStatus(db, jobId!, "completed", {
       review_url: "https://review.example.com/123",
     });
 
-    const job = getJob(db, jobId);
+    const job = getJob(db, jobId!);
     expect(job!.status).toBe("completed");
     expect(job!.completed_at).not.toBeNull();
     expect(job!.review_url).toBe("https://review.example.com/123");
@@ -175,7 +176,7 @@ describe("database", () => {
     });
 
     const reviewId = insertReview(db, {
-      job_id: jobId,
+      job_id: jobId!,
       reviewer_github: "reviewer1",
       decisions: [
         { change_id: "c1", status: "approved" },

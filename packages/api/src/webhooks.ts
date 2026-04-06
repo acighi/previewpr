@@ -11,6 +11,7 @@ import {
   checkAndResetMonthlyCount,
   removeInstallation,
   updateInstallationRepos,
+  removeReposFromInstallation,
   createLogger,
   createJobToken,
 } from "@previewpr/shared";
@@ -106,12 +107,11 @@ export function createWebhookHandler(deps: WebhookDeps) {
         const removed = (payload.repositories_removed || []).map(
           (r: { full_name: string }) => r.full_name,
         );
+        removeReposFromInstallation(db, githubId, removed);
         logger.info("Installation repos removed", {
           github_id: githubId,
           repos: removed,
         });
-        // Note: updateInstallationRepos currently replaces the full list.
-        // For now, log the removal. Full diff-based update is Phase 2.
       }
       return reply.send({ ok: true });
     }
@@ -132,6 +132,22 @@ export function createWebhookHandler(deps: WebhookDeps) {
       const installation = getInstallation(db, installationGithubId);
       if (!installation) {
         return reply.code(404).send({ error: "Installation not found" });
+      }
+
+      // Check repo allowlist — if installation is restricted to specific repos, verify this repo is allowed
+      if (installation.repos !== "all") {
+        const allowedRepos = installation.repos as string[];
+        if (!allowedRepos.includes(payload.repository.full_name)) {
+          logger.info("PR skipped — repo not in installation allowlist", {
+            repo: payload.repository.full_name,
+            allowed: allowedRepos,
+          });
+          return reply.send({
+            ok: true,
+            skipped: true,
+            reason: "repo_not_allowed",
+          });
+        }
       }
 
       // Reset monthly count if we've crossed into a new month
@@ -164,6 +180,7 @@ export function createWebhookHandler(deps: WebhookDeps) {
             base_branch: pr.base.ref,
             head_sha: pr.head.sha,
           });
+          if (!id) return "duplicate"; // dedup — same PR+SHA already queued/running
           incrementPrCount(db, installation.id);
           return id;
         })
@@ -171,6 +188,13 @@ export function createWebhookHandler(deps: WebhookDeps) {
 
       if (jobId === null) {
         return reply.code(404).send({ error: "Installation not found" });
+      }
+      if (jobId === "duplicate") {
+        logger.info("Duplicate job skipped", {
+          repo: repoFullName,
+          pr: pr.number,
+        });
+        return reply.send({ ok: true, skipped: true, reason: "duplicate" });
       }
       if (jobId === "limit_reached") {
         const [owner, repo] = repoFullName.split("/");

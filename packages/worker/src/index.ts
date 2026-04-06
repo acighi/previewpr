@@ -129,6 +129,27 @@ const worker = createWorkerProcessor(env.REDIS_URL, async (bullJob) => {
   await processJob(bullJob.data);
 });
 
+worker.on("failed", (job, err) => {
+  if (!job) return;
+  const data = job.data as PipelineJobData;
+  const attempts = job.attemptsMade;
+  const maxAttempts = job.opts.attempts ?? 3;
+
+  if (attempts >= maxAttempts) {
+    log.error("Job exhausted all retries", {
+      jobId: data.jobId,
+      repo: data.repoFullName,
+      pr: data.prNumber,
+      attempts,
+      error: err.message,
+    });
+    // Safety net: ensure DB status is 'failed' even if the catch block in processJob was interrupted
+    updateJobStatus(db, data.jobId, "failed", {
+      error_message: `Exhausted ${maxAttempts} retries: ${scrubSecrets(err.message)}`,
+    });
+  }
+});
+
 const healthServer = createServer(async (req, res) => {
   if (req.url === "/health") {
     const running = worker.isRunning();
