@@ -146,9 +146,10 @@ export function buildRunArgs(
     "--security-opt=no-new-privileges",
   ];
 
-  // Static HTML has no code to exfiltrate; Node projects get full isolation
+  // All containers get network isolation to prevent SSRF
+  args.push("--network=none");
   if (projectType === "node") {
-    args.push("--network=none", "--tmpfs", "/tmp:rw,noexec,size=100m");
+    args.push("--tmpfs", "/tmp:rw,noexec,size=100m");
   }
 
   args.push(

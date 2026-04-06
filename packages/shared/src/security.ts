@@ -16,6 +16,8 @@ const SECRET_PATTERNS: Array<[RegExp, string]> = [
     /(api_key|api_secret|secret_key|private_key|password|token|credential)\s*[=:]\s*\S{16,}/gi,
     "$1=***",
   ],
+  // Redis URLs with passwords: redis://:password@host:port
+  [/redis:\/\/:[^@]+@/gi, "redis://:[REDACTED]@"],
   // File system paths (reduce internal info leakage)
   [/\/tmp\/previewpr-jobs\/[a-f0-9-]+/g, "/tmp/previewpr-jobs/***"],
   [/\/app\/[^\s"']+/g, "/app/***"],

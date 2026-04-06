@@ -29,7 +29,15 @@ export function createLogger(context?: { jobId?: string }): Logger {
     };
     if (extra) {
       for (const [k, v] of Object.entries(extra)) {
-        entry[k] = typeof v === "string" ? scrubSecrets(v) : v;
+        if (typeof v === "string") {
+          entry[k] = scrubSecrets(v);
+        } else if (v instanceof Error) {
+          entry[k] = scrubSecrets(v.message);
+        } else if (typeof v === "object" && v !== null) {
+          entry[k] = scrubSecrets(JSON.stringify(v));
+        } else {
+          entry[k] = v;
+        }
       }
     }
     process.stdout.write(JSON.stringify(entry) + "\n");

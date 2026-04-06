@@ -46,7 +46,11 @@ export interface PipelineContext {
  */
 function createAskPassScript(jobDir: string, token: string): string {
   const scriptPath = path.join(jobDir, ".git-askpass.sh");
-  writeFileSync(scriptPath, `#!/bin/sh\necho "${token}"\n`, { mode: 0o700 });
+  writeFileSync(
+    scriptPath,
+    `#!/bin/sh\nprintf '%s\\n' '${token.replace(/'/g, "'\\''")}'\n`,
+    { mode: 0o700 },
+  );
   chmodSync(scriptPath, 0o700);
   return scriptPath;
 }
