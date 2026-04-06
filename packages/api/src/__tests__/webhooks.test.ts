@@ -61,7 +61,18 @@ describe("verifyWebhookSignature", () => {
 
 function createMockDeps() {
   return {
-    db: { transaction: (fn: Function) => fn } as any,
+    db: {
+      transaction: (fn: Function) => {
+        const wrapper = (...args: unknown[]) => fn(...args);
+        wrapper.immediate = (...args: unknown[]) => fn(...args);
+        wrapper.deferred = (...args: unknown[]) => fn(...args);
+        wrapper.exclusive = (...args: unknown[]) => fn(...args);
+        return wrapper;
+      },
+      prepare: (sql: string) => ({
+        get: vi.fn().mockReturnValue({ pr_count_month: 0, plan: "pro" }),
+      }),
+    } as any,
     queue: { add: vi.fn().mockResolvedValue(undefined) } as any,
     webhookSecret: "test-secret",
     postPrComment: vi.fn().mockResolvedValue(12345),

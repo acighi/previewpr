@@ -71,7 +71,7 @@ describe("database", () => {
 
     const inst = getInstallation(db, 12345);
     expect(inst!.account_login).toBe("newname");
-    expect(inst!.plan).toBe("pro");
+    expect(inst!.plan).toBe("free"); // plan is preserved on reinstall, not overwritten
   });
 
   it("insertJob + getJob round-trip (verify status is queued)", () => {

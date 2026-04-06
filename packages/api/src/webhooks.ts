@@ -136,24 +136,50 @@ export function createWebhookHandler(deps: WebhookDeps) {
 
       // Reset monthly count if we've crossed into a new month
       checkAndResetMonthlyCount(db, installation.id);
-      // Re-fetch to get potentially updated count
-      const freshInstallation = getInstallation(db, installationGithubId);
-      if (!freshInstallation) {
+
+      // Atomic: check limit + insert job + increment count
+      // IMMEDIATE acquires write lock at transaction start, preventing concurrent reads of stale count
+      const pr = payload.pull_request;
+      const repoFullName = payload.repository.full_name;
+      const jobId = db
+        .transaction(() => {
+          // Re-read count inside transaction with write lock held
+          const fresh = db
+            .prepare(
+              "SELECT pr_count_month, plan FROM installations WHERE id = ?",
+            )
+            .get(installation.id) as
+            | { pr_count_month: number; plan: string }
+            | undefined;
+
+          if (!fresh) return null;
+          if (fresh.plan === "free" && fresh.pr_count_month >= 50)
+            return "limit_reached";
+
+          const id = insertJob(db, {
+            installation_id: installation.id,
+            repo_full_name: repoFullName,
+            pr_number: pr.number,
+            pr_branch: pr.head.ref,
+            base_branch: pr.base.ref,
+            head_sha: pr.head.sha,
+          });
+          incrementPrCount(db, installation.id);
+          return id;
+        })
+        .immediate();
+
+      if (jobId === null) {
         return reply.code(404).send({ error: "Installation not found" });
       }
-
-      // Check free tier limit
-      if (
-        freshInstallation.plan === "free" &&
-        freshInstallation.pr_count_month >= 50
-      ) {
-        const [owner, repo] = payload.repository.full_name.split("/");
+      if (jobId === "limit_reached") {
+        const [owner, repo] = repoFullName.split("/");
         await postPrComment(
           installationGithubId,
           owner,
           repo,
-          payload.pull_request.number,
-          "You've reached the free tier limit of 3 PRs/month. " +
+          pr.number,
+          "You've reached the free tier limit of 50 PRs/month. " +
             "[Upgrade to Pro](https://previewpr.com/pricing) for unlimited visual reviews.",
         );
         return reply.send({
@@ -163,36 +189,10 @@ export function createWebhookHandler(deps: WebhookDeps) {
         });
       }
 
-      // Insert job and increment PR count atomically
-      const pr = payload.pull_request;
-      const repoFullName = payload.repository.full_name;
-      const jobId = db.transaction(() => {
-        const id = insertJob(db, {
-          installation_id: installation.id,
-          repo_full_name: repoFullName,
-          pr_number: pr.number,
-          pr_branch: pr.head.ref,
-          base_branch: pr.base.ref,
-          head_sha: pr.head.sha,
-        });
-        incrementPrCount(db, installation.id);
-        return id;
-      })();
-
       // Generate HMAC token for the job status URL
       const jobToken = createJobToken(jobId, webhookSecret);
 
-      // Post "generating..." comment with authenticated status link
-      const [owner, repo] = repoFullName.split("/");
-      const commentId = await postPrComment(
-        installationGithubId,
-        owner,
-        repo,
-        pr.number,
-        `Generating visual review... This usually takes 1-2 minutes.\n\n[Check status](https://api.previewpr.com/jobs/${jobId}?token=${jobToken})`,
-      );
-
-      // Enqueue to BullMQ with comment ID so worker can update it
+      // Enqueue to BullMQ first — this is the critical path
       await queue.add("pipeline", {
         jobId,
         installationGithubId,
@@ -201,8 +201,26 @@ export function createWebhookHandler(deps: WebhookDeps) {
         prBranch: pr.head.ref,
         baseBranch: pr.base.ref,
         headSha: pr.head.sha,
-        commentId,
       });
+
+      // Post "generating..." comment — best effort, don't fail the webhook
+      try {
+        const [owner, repo] = repoFullName.split("/");
+        await postPrComment(
+          installationGithubId,
+          owner,
+          repo,
+          pr.number,
+          `Generating visual review... This usually takes 1-2 minutes.\n\n[Check status](https://api.previewpr.com/jobs/${jobId}?token=${jobToken})`,
+        );
+      } catch (commentErr) {
+        logger.warn("Failed to post PR comment", {
+          error:
+            commentErr instanceof Error
+              ? commentErr.message
+              : String(commentErr),
+        });
+      }
 
       logger.info("Job created for PR", {
         jobId,

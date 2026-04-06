@@ -98,8 +98,7 @@ export function insertInstallation(
      ON CONFLICT(github_id) DO UPDATE SET
        account_login = excluded.account_login,
        account_type = excluded.account_type,
-       repos = excluded.repos,
-       plan = excluded.plan`,
+       repos = excluded.repos`,
   ).run(
     data.github_id,
     data.account_login,
@@ -147,7 +146,11 @@ export function checkAndResetMonthlyCount(
     .get(installationId) as { pr_count_reset_at: string } | undefined;
   if (!row) return;
 
-  const resetDate = new Date(row.pr_count_reset_at + "Z");
+  const raw = row.pr_count_reset_at;
+  const resetDate = new Date(
+    raw.includes("Z") || raw.includes("+") ? raw : raw.replace(" ", "T") + "Z",
+  );
+  if (isNaN(resetDate.getTime())) return; // corrupt data — skip reset, don't crash
   const now = new Date();
   if (
     now.getUTCMonth() !== resetDate.getUTCMonth() ||
@@ -197,7 +200,7 @@ export function updateJobStatus(
     `UPDATE jobs SET
        status = ?,
        review_url = COALESCE(?, review_url),
-       error_message = COALESCE(?, error_message),
+       error_message = ?,
        completed_at = COALESCE(?, completed_at)
      WHERE id = ?`,
   ).run(
