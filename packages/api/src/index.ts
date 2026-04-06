@@ -13,6 +13,7 @@ import {
   verifyJobToken,
 } from "@previewpr/shared";
 import { loadEnv } from "./env.js";
+import { InstallationIdParam } from "./schemas.js";
 import { createWebhookHandler } from "./webhooks.js";
 
 const logger = createLogger();
@@ -107,14 +108,17 @@ async function main() {
       },
     },
     async (request, reply) => {
-      const installationId = request.query.installation_id;
       const code = request.query.code;
+      const parsedId = InstallationIdParam.safeParse(
+        request.query.installation_id,
+      );
 
-      if (!code || !installationId) {
+      if (!code || !parsedId.success) {
         return reply
           .code(400)
-          .send({ error: "Missing code or installation_id" });
+          .send({ error: "Missing code or invalid installation_id" });
       }
+      const installationId = String(parsedId.data);
 
       // Exchange OAuth code to verify the request is authentic
       try {

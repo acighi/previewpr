@@ -15,6 +15,11 @@ import {
   createLogger,
   createJobToken,
 } from "@previewpr/shared";
+import {
+  PullRequestPayload,
+  InstallationPayload,
+  InstallationReposPayload,
+} from "./schemas.js";
 
 const logger = createLogger();
 
@@ -63,10 +68,19 @@ export function createWebhookHandler(deps: WebhookDeps) {
     }
 
     const event = request.headers["x-github-event"] as string;
-    const payload = request.body as Record<string, any>;
+    const rawPayload = request.body;
 
     // Route by event type
     if (event === "installation") {
+      const parsed = InstallationPayload.safeParse(rawPayload);
+      if (!parsed.success) {
+        logger.warn("Invalid installation payload", {
+          errors: parsed.error.message,
+        });
+        return reply.code(400).send({ error: "Invalid payload" });
+      }
+      const payload = parsed.data;
+
       if (payload.action === "created") {
         const inst = payload.installation;
         const account = inst.account;
@@ -96,16 +110,25 @@ export function createWebhookHandler(deps: WebhookDeps) {
     }
 
     if (event === "installation_repositories") {
+      const parsed = InstallationReposPayload.safeParse(rawPayload);
+      if (!parsed.success) {
+        logger.warn("Invalid installation_repositories payload", {
+          errors: parsed.error.message,
+        });
+        return reply.code(400).send({ error: "Invalid payload" });
+      }
+      const payload = parsed.data;
+
       const githubId = payload.installation.id;
       if (payload.action === "added") {
         const repos = (payload.repositories_added || []).map(
-          (r: { full_name: string }) => r.full_name,
+          (r) => r.full_name,
         );
         updateInstallationRepos(db, githubId, repos);
         logger.info("Installation repos added", { github_id: githubId });
       } else if (payload.action === "removed") {
         const removed = (payload.repositories_removed || []).map(
-          (r: { full_name: string }) => r.full_name,
+          (r) => r.full_name,
         );
         removeReposFromInstallation(db, githubId, removed);
         logger.info("Installation repos removed", {
@@ -117,17 +140,19 @@ export function createWebhookHandler(deps: WebhookDeps) {
     }
 
     if (event === "pull_request") {
-      const action = payload.action;
+      const parsed = PullRequestPayload.safeParse(rawPayload);
+      if (!parsed.success) {
+        logger.warn("Invalid PR payload", { errors: parsed.error.message });
+        return reply.code(400).send({ error: "Invalid payload" });
+      }
+      const payload = parsed.data;
 
       // Only handle relevant PR actions
-      if (!["opened", "synchronize", "reopened"].includes(action)) {
+      if (!["opened", "synchronize", "reopened"].includes(payload.action)) {
         return reply.send({ ok: true, skipped: true });
       }
 
-      const installationGithubId = payload.installation?.id;
-      if (!installationGithubId) {
-        return reply.code(400).send({ error: "Missing installation ID" });
-      }
+      const installationGithubId = payload.installation.id;
 
       const installation = getInstallation(db, installationGithubId);
       if (!installation) {
