@@ -57,7 +57,10 @@ const MIGRATIONS: Migration[] = [
   },
   {
     version: 2,
-    sql: `ALTER TABLE installations ADD COLUMN pr_count_reset_at TEXT NOT NULL DEFAULT (datetime('now'));`,
+    sql: `
+      ALTER TABLE installations ADD COLUMN pr_count_reset_at TEXT NOT NULL DEFAULT '1970-01-01 00:00:00';
+      UPDATE installations SET pr_count_reset_at = datetime('now') WHERE pr_count_reset_at = '1970-01-01 00:00:00';
+    `,
   },
 ];
 
