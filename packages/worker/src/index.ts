@@ -62,6 +62,8 @@ async function processJob(job: PipelineJobData): Promise<void> {
       anthropicApiKey: env.ANTHROPIC_API_KEY,
       cfApiToken: env.CF_API_TOKEN,
       cfAccountId: env.CF_ACCOUNT_ID,
+      githubClientId: env.GITHUB_CLIENT_ID,
+      apiBaseUrl: env.API_BASE_URL,
     };
 
     const timeoutErr = new Error(

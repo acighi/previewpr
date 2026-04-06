@@ -23,6 +23,8 @@ export interface DeployOptions {
   cfApiToken: string;
   cfAccountId: string;
   jobId: string;
+  githubClientId: string;
+  apiBaseUrl: string;
 }
 
 // --- Build logic ---
@@ -31,6 +33,7 @@ export function buildReviewApp(
   changesJsonPath: string,
   screenshotsDir: string,
   outputDir: string,
+  viteEnv?: { githubClientId: string; apiBaseUrl: string },
 ): string {
   // 1. Copy review-app source to a temp build directory
   const buildDir = path.join(outputDir, "review-app-build");
@@ -80,6 +83,13 @@ export function buildReviewApp(
     cwd: buildDir,
     timeout: 60_000,
     stdio: "pipe",
+    env: {
+      ...process.env,
+      ...(viteEnv && {
+        VITE_GITHUB_CLIENT_ID: viteEnv.githubClientId,
+        VITE_OAUTH_WORKER_URL: viteEnv.apiBaseUrl,
+      }),
+    },
   });
 
   const distDir = path.join(buildDir, "dist");
@@ -149,11 +159,21 @@ export function deployToPages(
 // --- Main function ---
 
 export async function deployReviewApp(options: DeployOptions): Promise<string> {
-  const { changesJsonPath, screenshotsDir, cfApiToken, cfAccountId } = options;
+  const {
+    changesJsonPath,
+    screenshotsDir,
+    cfApiToken,
+    cfAccountId,
+    githubClientId,
+    apiBaseUrl,
+  } = options;
 
   // 1. Build review app with injected data
   const outputDir = path.dirname(changesJsonPath);
-  const distDir = buildReviewApp(changesJsonPath, screenshotsDir, outputDir);
+  const distDir = buildReviewApp(changesJsonPath, screenshotsDir, outputDir, {
+    githubClientId,
+    apiBaseUrl,
+  });
 
   // 2. Deploy to CF Pages via wrangler
   const deploymentUrl = deployToPages(

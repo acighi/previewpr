@@ -168,6 +168,71 @@ async function main() {
     },
   );
 
+  // OAuth callback for review app — exchanges code for user token,
+  // redirects back to the review app with the token in the URL fragment
+  app.get<{
+    Querystring: { code?: string; state?: string };
+  }>(
+    "/oauth/callback",
+    {
+      config: {
+        rateLimit: {
+          max: 10,
+          timeWindow: "1 minute",
+        },
+      },
+    },
+    async (request, reply) => {
+      const { code, state } = request.query;
+      if (!code || !state) {
+        return reply.code(400).send({ error: "Missing code or state" });
+      }
+
+      // Extract return URL from state (format: "randomUUID|https://xxx.pages.dev/")
+      const pipeIdx = state.indexOf("|");
+      const oauthState = pipeIdx > 0 ? state.substring(0, pipeIdx) : state;
+      const returnUrl = pipeIdx > 0 ? state.substring(pipeIdx + 1) : undefined;
+
+      try {
+        const tokenResp = await fetch(
+          "https://github.com/login/oauth/access_token",
+          {
+            method: "POST",
+            headers: {
+              Accept: "application/json",
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              client_id: env.GITHUB_CLIENT_ID,
+              client_secret: env.GITHUB_CLIENT_SECRET,
+              code,
+            }),
+          },
+        );
+        const tokenData = (await tokenResp.json()) as Record<string, unknown>;
+        if (tokenData.error || !tokenData.access_token) {
+          logger.warn("Review OAuth code exchange failed", {
+            error: tokenData.error,
+          });
+          return reply.code(403).send({ error: "Invalid OAuth code" });
+        }
+
+        // Redirect back to review app with token in URL fragment
+        if (returnUrl) {
+          const fragment = `access_token=${tokenData.access_token}&state=${encodeURIComponent(oauthState)}`;
+          return reply.redirect(`${returnUrl}#${fragment}`);
+        }
+
+        return { ok: true };
+      } catch (err) {
+        logger.error("Review OAuth failed", {
+          error: scrubSecrets(String(err)),
+        });
+        return reply.code(500).send({ error: "OAuth failed" });
+      }
+    },
+  );
+
   // Job status endpoint — requires HMAC-signed token for access
   app.get<{ Params: { jobId: string }; Querystring: { token?: string } }>(
     "/jobs/:jobId",

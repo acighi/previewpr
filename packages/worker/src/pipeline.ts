@@ -37,6 +37,8 @@ export interface PipelineContext {
   anthropicApiKey: string;
   cfApiToken: string;
   cfAccountId: string;
+  githubClientId: string;
+  apiBaseUrl: string;
 }
 
 /**
@@ -204,6 +206,8 @@ export async function runPipeline(
       cfApiToken: ctx.cfApiToken,
       cfAccountId: ctx.cfAccountId,
       jobId: job.jobId,
+      githubClientId: ctx.githubClientId,
+      apiBaseUrl: ctx.apiBaseUrl,
     });
     log.info(`Step 8: deployed review app — ${reviewUrl}`);
 

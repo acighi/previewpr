@@ -6,6 +6,8 @@ export interface WorkerEnv {
   GITHUB_PRIVATE_KEY: string;
   CF_API_TOKEN: string;
   CF_ACCOUNT_ID: string;
+  GITHUB_CLIENT_ID: string;
+  API_BASE_URL: string;
   JOBS_DIR: string;
   HEALTH_PORT: number;
 }
@@ -53,6 +55,8 @@ export function loadEnv(): WorkerEnv {
     GITHUB_PRIVATE_KEY: normalizePem(required("GITHUB_PRIVATE_KEY")),
     CF_API_TOKEN: required("CF_API_TOKEN"),
     CF_ACCOUNT_ID: required("CF_ACCOUNT_ID"),
+    GITHUB_CLIENT_ID: required("GITHUB_CLIENT_ID"),
+    API_BASE_URL: process.env.API_BASE_URL ?? "https://api.previewpr.com",
     JOBS_DIR: process.env.JOBS_DIR ?? "/tmp/previewpr-jobs",
     HEALTH_PORT: Number(process.env.HEALTH_PORT || "3001"),
   };
