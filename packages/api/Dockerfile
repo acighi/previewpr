@@ -11,7 +11,7 @@ RUN npm run build -w packages/shared && npm run build -w packages/api
 
 FROM node:20-alpine
 # su-exec for dropping root after fixing permissions
-RUN apk add --no-cache su-exec
+RUN apk add --no-cache su-exec curl
 WORKDIR /app
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
