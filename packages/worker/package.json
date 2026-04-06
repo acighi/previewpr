@@ -12,6 +12,7 @@
     "@previewpr/shared": "*",
     "@anthropic-ai/sdk": "^0.80.0",
     "playwright": "^1.58.0",
+    "wrangler": "^4.0.0",
     "pixelmatch": "^7.1.0",
     "pngjs": "^7.0.0"
   },

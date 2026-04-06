@@ -1,12 +1,9 @@
 import { execFileSync } from "node:child_process";
-import { createHash } from "node:crypto";
 import {
   cpSync,
   existsSync,
   mkdirSync,
-  readdirSync,
   readFileSync,
-  statSync,
   writeFileSync,
 } from "node:fs";
 import path from "node:path";
@@ -14,7 +11,6 @@ import path from "node:path";
 // --- Constants ---
 
 const CF_PAGES_PROJECT = "previewpr-reviews";
-const CF_API_BASE = "https://api.cloudflare.com/client/v4";
 
 // The review-app source lives alongside the worker package
 const REVIEW_APP_SRC = path.resolve(import.meta.dirname, "../../review-app");
@@ -27,61 +23,6 @@ export interface DeployOptions {
   cfApiToken: string;
   cfAccountId: string;
   jobId: string;
-}
-
-interface CfApiResponse<T = unknown> {
-  success: boolean;
-  result: T;
-  errors: Array<{ code: number; message: string }>;
-}
-
-interface CfDeploymentResult {
-  url: string;
-  id: string;
-}
-
-// --- CF Pages API helpers ---
-
-export async function ensureCfPagesProject(
-  cfApiToken: string,
-  cfAccountId: string,
-  projectName: string,
-): Promise<void> {
-  const url = `${CF_API_BASE}/accounts/${cfAccountId}/pages/projects/${projectName}`;
-  const resp = await fetch(url, {
-    headers: { Authorization: `Bearer ${cfApiToken}` },
-    signal: AbortSignal.timeout(30_000),
-  });
-
-  if (resp.ok) return; // project exists
-
-  if (resp.status === 404) {
-    const createUrl = `${CF_API_BASE}/accounts/${cfAccountId}/pages/projects`;
-    const createResp = await fetch(createUrl, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${cfApiToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        name: projectName,
-        production_branch: "main",
-      }),
-      signal: AbortSignal.timeout(30_000),
-    });
-
-    if (!createResp.ok) {
-      const body = await createResp.text();
-      throw new Error(
-        `Failed to create CF Pages project "${projectName}": ${createResp.status} ${body}`,
-      );
-    }
-    return;
-  }
-
-  throw new Error(
-    `Failed to check CF Pages project "${projectName}": ${resp.status}`,
-  );
 }
 
 // --- Build logic ---
@@ -149,78 +90,49 @@ export function buildReviewApp(
   return distDir;
 }
 
-// --- Deploy logic ---
+// --- Deploy logic using wrangler CLI ---
 
-/**
- * Recursively collect all files in a directory, returning paths relative to root.
- */
-function collectFiles(dir: string, root?: string): string[] {
-  const base = root ?? dir;
-  const files: string[] = [];
-  for (const entry of readdirSync(dir)) {
-    const full = path.join(dir, entry);
-    if (statSync(full).isDirectory()) {
-      files.push(...collectFiles(full, base));
-    } else {
-      files.push(path.relative(base, full));
-    }
-  }
-  return files;
-}
-
-export async function deployToPages(
+export function deployToPages(
   distDir: string,
   cfApiToken: string,
   cfAccountId: string,
   projectName: string,
-): Promise<string> {
-  const url = `${CF_API_BASE}/accounts/${cfAccountId}/pages/projects/${projectName}/deployments`;
+): string {
+  // wrangler pages deploy handles the full upload flow:
+  // BLAKE3 hashing, check-missing, upload, upsert-hashes, create deployment
+  const output = execFileSync(
+    "npx",
+    [
+      "wrangler",
+      "pages",
+      "deploy",
+      distDir,
+      `--project-name=${projectName}`,
+      "--commit-dirty=true",
+    ],
+    {
+      timeout: 120_000,
+      stdio: "pipe",
+      env: {
+        ...process.env,
+        CLOUDFLARE_API_TOKEN: cfApiToken,
+        CLOUDFLARE_ACCOUNT_ID: cfAccountId,
+      },
+    },
+  );
 
-  const files = collectFiles(distDir);
+  const text = output.toString("utf-8");
 
-  // Build manifest: map file paths to SHA-256 content hashes
-  const manifest: Record<string, string> = {};
-  const hashToContent = new Map<string, Buffer>();
-
-  for (const relPath of files) {
-    const fullPath = path.join(distDir, relPath);
-    const content = readFileSync(fullPath);
-    const hash = createHash("sha256").update(content).digest("hex");
-    const key = `/${relPath}`;
-    manifest[key] = hash;
-    if (!hashToContent.has(hash)) {
-      hashToContent.set(hash, content);
-    }
-  }
-
-  // Build multipart: manifest field + file blobs keyed by hash
-  const formData = new FormData();
-  formData.append("manifest", JSON.stringify(manifest));
-
-  for (const [hash, content] of hashToContent) {
-    formData.append(hash, new Blob([new Uint8Array(content)]));
-  }
-
-  const resp = await fetch(url, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${cfApiToken}` },
-    body: formData,
-    signal: AbortSignal.timeout(60_000), // upload can be larger, 60s
-  });
-
-  if (!resp.ok) {
-    const body = await resp.text();
-    throw new Error(`CF Pages deploy failed: ${resp.status} ${body}`);
-  }
-
-  const data = (await resp.json()) as CfApiResponse<CfDeploymentResult>;
-  if (!data.success) {
+  // Extract deployment URL from wrangler output
+  // Format: "✨ Deployment complete! Take a peek over at https://xxx.project.pages.dev"
+  const urlMatch = text.match(/https:\/\/[^\s]+\.pages\.dev/);
+  if (!urlMatch) {
     throw new Error(
-      `CF Pages deploy error: ${data.errors.map((e) => e.message).join(", ")}`,
+      `Could not find deployment URL in wrangler output:\n${text}`,
     );
   }
 
-  return data.result.url;
+  return urlMatch[0];
 }
 
 // --- Main function ---
@@ -232,11 +144,8 @@ export async function deployReviewApp(options: DeployOptions): Promise<string> {
   const outputDir = path.dirname(changesJsonPath);
   const distDir = buildReviewApp(changesJsonPath, screenshotsDir, outputDir);
 
-  // 2. Ensure CF Pages project exists
-  await ensureCfPagesProject(cfApiToken, cfAccountId, CF_PAGES_PROJECT);
-
-  // 3. Deploy to CF Pages
-  const deploymentUrl = await deployToPages(
+  // 2. Deploy to CF Pages via wrangler
+  const deploymentUrl = deployToPages(
     distDir,
     cfApiToken,
     cfAccountId,
