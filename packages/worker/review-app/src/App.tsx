@@ -220,7 +220,7 @@ export function App() {
         {isReviewStep && currentChange && currentDecision && (
           <ChangeCard
             change={currentChange}
-            captures={reviewData.screenshots[currentChange.id]?.captures}
+            captures={reviewData.screenshots?.[currentChange.id]?.captures}
             decision={currentDecision}
             onDecisionChange={handleDecisionChange}
             stepNumber={currentStep + 1}
