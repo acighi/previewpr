@@ -113,6 +113,9 @@ export function deployToPages(
     {
       timeout: 120_000,
       stdio: "pipe",
+      // Use distDir's parent as cwd so wrangler can create its .wrangler/ cache
+      // (the default /app/ cwd is root-owned in Docker, node user can't write there)
+      cwd: path.dirname(distDir),
       env: {
         ...process.env,
         CLOUDFLARE_API_TOKEN: cfApiToken,
